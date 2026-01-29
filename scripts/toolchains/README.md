@@ -178,42 +178,19 @@ node toolchains/sync.js --platform win32-x64
 
 ## GitHub Actions 集成
 
-可以在 GitHub Actions 中自动运行同步：
+由于采用直接下载方式，只需要**一个 ubuntu-latest runner** 即可打包所有平台。
 
-```yaml
-name: Sync Toolchains
+已配置的 workflow 文件：`.github/workflows/sync-arduino-toolchains.yml`
 
-on:
-  schedule:
-    - cron: '0 0 * * 1'  # 每周一运行
-  workflow_dispatch:
+触发条件：
+- 手动触发（支持 dry-run 模式）
+- 每周一 00:00 UTC 自动运行
+- `toolchains.json` 文件变更时
 
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-      
-      - name: Install dependencies
-        run: cd scripts && npm ci
-      
-      - name: Sync toolchains
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        run: cd scripts && npm run sync:toolchains
-      
-      - name: Commit changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages.json
-          git diff --staged --quiet || git commit -m "chore: sync toolchains"
-          git push
-```
+环境变量（需在 GitHub Secrets 中配置）：
+- `R2_ACCOUNT_ID`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET`
+- `R2_PUBLIC_URL`
 
