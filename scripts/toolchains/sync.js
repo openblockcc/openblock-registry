@@ -164,17 +164,17 @@ const generateSyncReport = (reportData) => {
     }
 
     // Overview
-    lines.push('### 概览');
-    lines.push('| 成功 | 跳过 | 删除 | 失败 |');
-    lines.push('|------|------|------|------|');
+    lines.push('### Overview');
+    lines.push('| Success | Skipped | Deleted | Failed |');
+    lines.push('|---------|---------|---------|--------|');
     lines.push(`| ${summary.success} | ${summary.skipped} | ${summary.deleted} | ${summary.failed} |`);
     lines.push('');
 
     // Build toolchain results table
     if (toolchainResults.size > 0) {
-        lines.push('### 打包结果');
+        lines.push('### Packaging Results');
         lines.push('');
-        lines.push(`| Toolchain | 版本 | ${OPENBLOCK_PLATFORMS.join(' | ')} |`);
+        lines.push(`| Toolchain | Version | ${OPENBLOCK_PLATFORMS.join(' | ')} |`);
         lines.push(`|-----------|------|${OPENBLOCK_PLATFORMS.map(() => ':--------:').join('|')}|`);
 
         // Group results by toolchain id+version
@@ -195,21 +195,21 @@ const generateSyncReport = (reportData) => {
             lines.push(`| ${id} | ${version} | ${cells.join(' | ')} |`);
         }
         lines.push('');
-        lines.push('**说明：**');
-        lines.push('- `OK` - 成功');
-        lines.push('- `OK*` - 使用 darwin-x64 回退');
-        lines.push('- `OK**` - 使用 win32-ia32 回退');
-        lines.push('- `-` - 跳过 (缺少工具)');
-        lines.push('- `X` - 失败');
+        lines.push('**Legend:**');
+        lines.push('- `OK` - Success');
+        lines.push('- `OK*` - Using darwin-x64 fallback');
+        lines.push('- `OK**` - Using win32-ia32 fallback');
+        lines.push('- `-` - Skipped (missing tools)');
+        lines.push('- `X` - Failed');
         lines.push('');
     }
 
     // Deleted toolchains
     if (deleted.length > 0) {
-        lines.push('### 已删除');
+        lines.push('### Deleted');
         lines.push('');
-        lines.push('| Toolchain | 版本 | 平台 |');
-        lines.push('|-----------|------|------|');
+        lines.push('| Toolchain | Version | Platform |');
+        lines.push('|-----------|---------|----------|');
         for (const item of deleted) {
             lines.push(`| ${item.id} | ${item.version} | ${item.platform} |`);
         }
@@ -231,10 +231,10 @@ const generateSyncReport = (reportData) => {
     }
 
     if (missingToolsDetails.length > 0) {
-        lines.push('### 缺失工具详情');
+        lines.push('### Missing Tools Details');
         lines.push('');
-        lines.push('| Toolchain | 平台 | 缺失工具 |');
-        lines.push('|-----------|------|----------|');
+        lines.push('| Toolchain | Platform | Missing Tools |');
+        lines.push('|-----------|----------|----------------|');
         for (const detail of missingToolsDetails) {
             const tools = detail.missingTools.map(t => `${t.packager}/${t.name}@${t.version}`).join(', ');
             lines.push(`| ${detail.toolchain} | ${detail.platform} | ${tools} |`);
