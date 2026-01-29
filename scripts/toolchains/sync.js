@@ -26,9 +26,11 @@ import {
 import {
     createZipArchive,
     packageToolchainDirect,
-    MissingToolsError
+    MissingToolsError,
+    mergePackageIndexes
 } from './arduino/packager.js';
 import {OPENBLOCK_PLATFORMS} from './arduino/platform-mapper.js';
+import {collectDownloadResources, parseCore} from './arduino/index-parser.js';
 
 
 /**
@@ -165,14 +167,20 @@ const generateSyncReport = (reportData) => {
 
     // Overview
     lines.push('### Overview');
-    lines.push('| Success | Skipped | Deleted | Failed |');
-    lines.push('|---------|---------|---------|--------|');
-    lines.push(`| ${summary.success} | ${summary.skipped} | ${summary.deleted} | ${summary.failed} |`);
+    if (dryRun) {
+        lines.push('| To Add | To Skip | To Delete |');
+        lines.push('|--------|---------|-----------|');
+        lines.push(`| ${summary.success} | ${summary.skipped} | ${summary.deleted} |`);
+    } else {
+        lines.push('| Success | Skipped | Deleted | Failed |');
+        lines.push('|---------|---------|---------|--------|');
+        lines.push(`| ${summary.success} | ${summary.skipped} | ${summary.deleted} | ${summary.failed} |`);
+    }
     lines.push('');
 
     // Build toolchain results table
     if (toolchainResults.size > 0) {
-        lines.push('### Packaging Results');
+        lines.push(dryRun ? '### Expected State' : '### Packaging Results');
         lines.push('');
         lines.push(`| Toolchain | Version | ${OPENBLOCK_PLATFORMS.join(' | ')} |`);
         lines.push(`|-----------|------|${OPENBLOCK_PLATFORMS.map(() => ':--------:').join('|')}|`);
@@ -184,10 +192,12 @@ const generateSyncReport = (reportData) => {
                 const result = platforms.get(platform);
                 if (!result) return '';
                 switch (result.status) {
-                case 'ok': return 'OK';
-                case 'ok-fallback-darwin': return 'OK*';
-                case 'ok-fallback-win32': return 'OK**';
+                case 'ok': return dryRun ? '+' : 'OK';
+                case 'ok-fallback-darwin': return dryRun ? '+*' : 'OK*';
+                case 'ok-fallback-win32': return dryRun ? '+**' : 'OK**';
+                case 'existing': return '✓';
                 case 'skipped': return '-';
+                case 'to-delete': return '×';
                 case 'failed': return 'X';
                 default: return '';
                 }
@@ -195,13 +205,24 @@ const generateSyncReport = (reportData) => {
             lines.push(`| ${id} | ${version} | ${cells.join(' | ')} |`);
         }
         lines.push('');
-        lines.push('**Legend:**');
-        lines.push('- `OK` - Success');
-        lines.push('- `OK*` - Using darwin-x64 fallback');
-        lines.push('- `OK**` - Using win32-ia32 fallback');
-        lines.push('- `-` - Skipped (missing tools)');
-        lines.push('- `X` - Failed');
-        lines.push('');
+        if (dryRun) {
+            lines.push('**Legend:**');
+            lines.push('- `✓` - Existing (no change)');
+            lines.push('- `+` - Will be added');
+            lines.push('- `+*` - Will be added (darwin-x64 fallback)');
+            lines.push('- `+**` - Will be added (win32-ia32 fallback)');
+            lines.push('- `-` - Will be skipped (missing tools)');
+            lines.push('- `×` - Will be deleted');
+            lines.push('');
+        } else {
+            lines.push('**Legend:**');
+            lines.push('- `OK` - Success');
+            lines.push('- `OK*` - Using darwin-x64 fallback');
+            lines.push('- `OK**` - Using win32-ia32 fallback');
+            lines.push('- `-` - Skipped (missing tools)');
+            lines.push('- `X` - Failed');
+            lines.push('');
+        }
     }
 
     // Deleted toolchains
@@ -303,23 +324,70 @@ export const sync = async (options = {}) => {
 
     if (dryRun) {
         logger.section('Dry Run - No changes will be made');
-        // Populate results for dry run display
-        for (const item of toAdd) {
-            addResult(item.id, item.version, item.platform, {status: 'ok'});
-            successCount++;
+
+        // Add existing items (from current state) to show complete picture
+        for (const [key, platforms] of current) {
+            const [id, version] = key.split('@');
+            for (const existingPlatform of platforms) {
+                // Check if this will be deleted
+                const willBeDeleted = toDelete.some(
+                    d => d.id === id && d.version === version && d.platform === existingPlatform
+                );
+                if (willBeDeleted) {
+                    addResult(id, version, existingPlatform, {status: 'to-delete'});
+                } else {
+                    addResult(id, version, existingPlatform, {status: 'existing'});
+                }
+            }
         }
+
+        // Mark items to delete
         for (const item of toDelete) {
             deletedItems.push(item);
+        }
+
+        // Check availability for items to add
+        logger.info('Checking tool availability for new items...');
+        const indexUrls = config.arduino.board_manager?.additional_urls ?? [];
+        const packageIndex = await mergePackageIndexes(indexUrls);
+
+        for (const item of toAdd) {
+            const pkgConfig = config.arduino.packages.find(p => p.id === item.id);
+            if (!pkgConfig) {
+                addResult(item.id, item.version, item.platform, {status: 'skipped', missingTools: []});
+                skippedCount++;
+                continue;
+            }
+
+            const {packager, architecture} = parseCore(pkgConfig.core);
+            const resources = collectDownloadResources(packageIndex, packager, architecture, item.version, item.platform);
+
+            if (resources.missingTools.length > 0) {
+                addResult(item.id, item.version, item.platform, {
+                    status: 'skipped',
+                    missingTools: resources.missingTools
+                });
+                skippedCount++;
+            } else {
+                let status = 'ok';
+                if (resources.fallbackUsed === 'darwin-x64') {
+                    status = 'ok-fallback-darwin';
+                } else if (resources.fallbackUsed === 'win32-ia32') {
+                    status = 'ok-fallback-win32';
+                }
+                addResult(item.id, item.version, item.platform, {status});
+                successCount++;
+            }
         }
 
         const report = generateSyncReport({
             toolchainResults,
             deleted: deletedItems,
-            summary: {success: successCount, skipped: 0, deleted: toDelete.length, failed: 0},
+            summary: {success: successCount, skipped: skippedCount, deleted: toDelete.length, failed: 0},
             dryRun: true
         });
         console.log('\n' + report);
-        return {added: 0, deleted: 0, wouldAdd: toAdd.length, wouldDelete: toDelete.length, report};
+        return {added: 0, deleted: 0, wouldAdd: successCount, wouldDelete: toDelete.length, report};
     }
 
     // Process additions first (ensure new versions are uploaded before deleting old ones)

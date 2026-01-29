@@ -12,10 +12,6 @@
     },
     "packages": [
       {
-        "id": "arduino-arduino-avr",
-        "core": "arduino:avr"
-      },
-      {
         "id": "arduino-arduino-renesas_uno",
         "core": "arduino:renesas_uno"
       },
