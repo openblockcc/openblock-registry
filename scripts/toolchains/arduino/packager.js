@@ -12,7 +12,6 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import archiver from 'archiver';
 import logger from '../../common/logger.js';
-import { getArduinoCliUrl } from './platform-mapper.js';
 import { fetchPackageIndex, collectDownloadResources, parseCore } from './index-parser.js';
 
 const execAsync = promisify(exec);
@@ -35,8 +34,11 @@ export const downloadFile = async (url, destPath) => {
     logger.success(`Downloaded: ${path.basename(destPath)}`);
 };
 
+// Increase maxBuffer for large archives (100MB)
+const EXEC_OPTIONS = { maxBuffer: 100 * 1024 * 1024 };
+
 /**
- * Extract archive (zip or tar.gz)
+ * Extract archive (zip, tar.gz, tar.bz2)
  * @param {string} archivePath - Archive file path
  * @param {string} destDir - Destination directory
  */
@@ -46,12 +48,14 @@ export const extractArchive = async (archivePath, destDir) => {
     if (archivePath.endsWith('.zip')) {
         // Use PowerShell on Windows, unzip on Unix
         if (process.platform === 'win32') {
-            await execAsync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${destDir}' -Force"`);
+            await execAsync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${destDir}' -Force"`, EXEC_OPTIONS);
         } else {
-            await execAsync(`unzip -o "${archivePath}" -d "${destDir}"`);
+            await execAsync(`unzip -o "${archivePath}" -d "${destDir}"`, EXEC_OPTIONS);
         }
     } else if (archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tgz')) {
-        await execAsync(`tar -xzf "${archivePath}" -C "${destDir}"`);
+        await execAsync(`tar -xzf "${archivePath}" -C "${destDir}"`, EXEC_OPTIONS);
+    } else if (archivePath.endsWith('.tar.bz2') || archivePath.endsWith('.tbz2')) {
+        await execAsync(`tar -xjf "${archivePath}" -C "${destDir}"`, EXEC_OPTIONS);
     } else {
         throw new Error(`Unsupported archive format: ${archivePath}`);
     }
@@ -318,19 +322,24 @@ const flattenExtractedDir = async (dir) => {
 
     // If there's exactly one directory and no files, flatten it
     if (entries.length === 1 && entries[0].isDirectory()) {
-        const subDir = path.join(dir, entries[0].name);
+        const subDirName = entries[0].name;
+        const subDir = path.join(dir, subDirName);
         const subEntries = await fs.readdir(subDir);
 
-        // Move all contents from subdirectory to parent
+        // Use a temporary directory to avoid conflicts when subdir name matches a file/folder being moved
+        const tempDir = `${dir}_flatten_temp_${Date.now()}`;
+        await fs.rename(subDir, tempDir);
+
+        // Move all contents from temp directory to parent
         for (const entry of subEntries) {
-            const srcPath = path.join(subDir, entry);
+            const srcPath = path.join(tempDir, entry);
             const destPath = path.join(dir, entry);
             await fs.rename(srcPath, destPath);
         }
 
-        // Remove empty subdirectory
-        await fs.rmdir(subDir);
-        logger.debug(`Flattened: ${entries[0].name}`);
+        // Remove empty temp directory
+        await fs.rmdir(tempDir);
+        logger.debug(`Flattened: ${subDirName}`);
     }
 };
 
