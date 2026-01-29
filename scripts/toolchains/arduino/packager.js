@@ -5,14 +5,14 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { createWriteStream } from 'fs';
-import { pipeline } from 'stream/promises';
-import { createHash } from 'crypto';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import {createWriteStream} from 'fs';
+import {pipeline} from 'stream/promises';
+import {createHash} from 'crypto';
+import {exec} from 'child_process';
+import {promisify} from 'util';
 import archiver from 'archiver';
 import logger from '../../common/logger.js';
-import { fetchPackageIndex, collectDownloadResources, parseCore } from './index-parser.js';
+import {fetchPackageIndex, collectDownloadResources, parseCore} from './index-parser.js';
 
 const execAsync = promisify(exec);
 
@@ -28,14 +28,14 @@ export const downloadFile = async (url, destPath) => {
         throw new Error(`Failed to download: ${response.status} ${response.statusText}`);
     }
 
-    await fs.mkdir(path.dirname(destPath), { recursive: true });
+    await fs.mkdir(path.dirname(destPath), {recursive: true});
     const fileStream = createWriteStream(destPath);
     await pipeline(response.body, fileStream);
     logger.success(`Downloaded: ${path.basename(destPath)}`);
 };
 
 // Increase maxBuffer for large archives (100MB)
-const EXEC_OPTIONS = { maxBuffer: 100 * 1024 * 1024 };
+const EXEC_OPTIONS = {maxBuffer: 100 * 1024 * 1024};
 
 /**
  * Extract archive (zip, tar.gz, tar.bz2)
@@ -43,7 +43,7 @@ const EXEC_OPTIONS = { maxBuffer: 100 * 1024 * 1024 };
  * @param {string} destDir - Destination directory
  */
 export const extractArchive = async (archivePath, destDir) => {
-    await fs.mkdir(destDir, { recursive: true });
+    await fs.mkdir(destDir, {recursive: true});
 
     if (archivePath.endsWith('.zip')) {
         // Use PowerShell on Windows, unzip on Unix
@@ -84,7 +84,7 @@ export const setupArduinoCli = async (cliPath, additionalUrls, dataDir) => {
         }
     };
 
-    await fs.mkdir(dataDir, { recursive: true });
+    await fs.mkdir(dataDir, {recursive: true});
     await fs.writeFile(configPath, JSON.stringify(config, null, 2));
 
     // Update index
@@ -108,6 +108,17 @@ export const installCore = async (cliPath, configPath, core) => {
 };
 
 /**
+ * Calculate SHA-256 checksum of a file
+ * @param {string} filePath - File path
+ * @returns {Promise<string>} Hex checksum
+ */
+export const calculateChecksum = async (filePath) => {
+    const content = await fs.readFile(filePath);
+    return createHash('sha256').update(content)
+        .digest('hex');
+};
+
+/**
  * Create a zip archive from a directory
  * @param {string} sourceDir - Source directory to archive
  * @param {string} outputPath - Output zip file path
@@ -115,15 +126,15 @@ export const installCore = async (cliPath, configPath, core) => {
  *                                    Use false to put contents at root, true/undefined to use dir name
  * @returns {Promise<{size: number, checksum: string}>} Archive info
  */
-export const createZipArchive = async (sourceDir, outputPath, destPath = undefined) => {
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+export const createZipArchive = async (sourceDir, outputPath, destPath = null) => {
+    await fs.mkdir(path.dirname(outputPath), {recursive: true});
 
     // Default: use the directory name as the root folder in the archive
-    const archiveDestPath = destPath === undefined ? path.basename(sourceDir) : destPath;
+    const archiveDestPath = destPath === null ? path.basename(sourceDir) : destPath;
 
     return new Promise((resolve, reject) => {
         const output = createWriteStream(outputPath);
-        const archive = archiver('zip', { zlib: { level: 9 } });
+        const archive = archiver('zip', {zlib: {level: 9}});
 
         output.on('close', async () => {
             const stats = await fs.stat(outputPath);
@@ -140,16 +151,6 @@ export const createZipArchive = async (sourceDir, outputPath, destPath = undefin
         archive.directory(sourceDir, archiveDestPath);
         archive.finalize();
     });
-};
-
-/**
- * Calculate SHA-256 checksum of a file
- * @param {string} filePath - File path
- * @returns {Promise<string>} Hex checksum
- */
-export const calculateChecksum = async (filePath) => {
-    const content = await fs.readFile(filePath);
-    return createHash('sha256').update(content).digest('hex');
 };
 
 /**
@@ -184,7 +185,7 @@ export const verifyChecksum = async (filePath, expectedChecksum) => {
  * @param {string} url - Download URL
  * @param {string} destPath - Destination file path
  * @param {string} expectedChecksum - Expected checksum
- * @returns {Promise<void>}
+ * @returns {Promise<void>} Resolves when download and verification is complete
  */
 export const downloadAndVerify = async (url, destPath, expectedChecksum) => {
     await downloadFile(url, destPath);
@@ -205,7 +206,7 @@ export const downloadAndVerify = async (url, destPath, expectedChecksum) => {
  * @returns {Promise<object>} Merged package index
  */
 export const mergePackageIndexes = async (urls) => {
-    const merged = { packages: [] };
+    const merged = {packages: []};
     const packageMap = new Map();
 
     for (const url of urls) {
@@ -218,7 +219,7 @@ export const mergePackageIndexes = async (urls) => {
                     existing.platforms = [...(existing.platforms || []), ...(pkg.platforms || [])];
                     existing.tools = [...(existing.tools || []), ...(pkg.tools || [])];
                 } else {
-                    packageMap.set(pkg.name, { ...pkg });
+                    packageMap.set(pkg.name, {...pkg});
                 }
             }
         } catch (err) {
@@ -231,94 +232,14 @@ export const mergePackageIndexes = async (urls) => {
 };
 
 /**
- * Package a toolchain by directly downloading resources (no arduino-cli)
- * @param {object} options - Packaging options
- * @param {string} options.core - Core identifier (e.g., 'arduino:avr')
- * @param {string} options.version - Version to package
- * @param {string} options.platform - Target OpenBlock platform (e.g., 'win32-x64')
- * @param {string[]} options.indexUrls - Package index URLs
- * @param {string} options.workDir - Working directory
- * @returns {Promise<{packagesDir: string, size: number, checksum: string}>}
- */
-export const packageToolchainDirect = async (options) => {
-    const { core, version, platform, indexUrls, workDir } = options;
-    const { packager, architecture } = parseCore(core);
-
-    logger.info(`Packaging ${core}@${version} for ${platform}`);
-
-    // Merge all package indexes
-    logger.info('Fetching package indexes...');
-    const packageIndex = await mergePackageIndexes(indexUrls);
-
-    // Collect download resources
-    const resources = collectDownloadResources(packageIndex, packager, architecture, version, platform);
-
-    if (resources.errors.length > 0) {
-        for (const err of resources.errors) {
-            logger.error(err);
-        }
-        throw new Error(`Failed to collect download resources`);
-    }
-
-    if (!resources.platform) {
-        throw new Error(`Platform not found: ${core}@${version}`);
-    }
-
-    // Check for missing tools - if any tool is missing for this platform, skip packaging
-    if (resources.missingTools.length > 0) {
-        const missingList = resources.missingTools
-            .map(t => `${t.packager}/${t.name}@${t.version}`)
-            .join(', ');
-        throw new Error(`Missing tools for ${platform}: ${missingList}`);
-    }
-
-    // Create directories
-    const downloadDir = path.join(workDir, 'downloads');
-    const packagesDir = path.join(workDir, 'packages');
-    await fs.mkdir(downloadDir, { recursive: true });
-    await fs.mkdir(packagesDir, { recursive: true });
-
-    // Download and extract platform (core)
-    logger.info(`Downloading platform: ${packager}:${architecture}@${version}`);
-    const platformArchive = path.join(downloadDir, resources.platform.archiveFileName);
-    await downloadAndVerify(resources.platform.url, platformArchive, resources.platform.checksum);
-
-    // Extract platform to packages/{packager}/hardware/{architecture}/{version}/
-    const platformDestDir = path.join(packagesDir, packager, 'hardware', architecture, version);
-    await fs.mkdir(platformDestDir, { recursive: true });
-    await extractArchive(platformArchive, platformDestDir);
-
-    // Move contents if extracted into a subdirectory
-    await flattenExtractedDir(platformDestDir);
-
-    // Download and extract tools
-    logger.info(`Downloading ${resources.tools.length} tools...`);
-    for (const tool of resources.tools) {
-        logger.info(`  Downloading: ${tool.name}@${tool.version}`);
-        const toolArchive = path.join(downloadDir, tool.archiveFileName);
-        await downloadAndVerify(tool.url, toolArchive, tool.checksum);
-
-        // Extract tool to packages/{packager}/tools/{toolname}/{version}/
-        const toolDestDir = path.join(packagesDir, tool.packager, 'tools', tool.name, tool.version);
-        await fs.mkdir(toolDestDir, { recursive: true });
-        await extractArchive(toolArchive, toolDestDir);
-
-        // Move contents if extracted into a subdirectory
-        await flattenExtractedDir(toolDestDir);
-    }
-
-    logger.success(`Package assembled: ${packagesDir}`);
-    return { packagesDir };
-};
-
-/**
  * Flatten extracted directory if contents are in a single subdirectory
  * Many archives extract to a folder like "avr-gcc-7.3.0-atmel3.6.1-arduino7/"
  * We want the contents directly in the target directory
  * @param {string} dir - Directory to flatten
+ * @returns {Promise<void>} Resolves when flattening is complete
  */
 const flattenExtractedDir = async (dir) => {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const entries = await fs.readdir(dir, {withFileTypes: true});
 
     // If there's exactly one directory and no files, flatten it
     if (entries.length === 1 && entries[0].isDirectory()) {
@@ -343,6 +264,97 @@ const flattenExtractedDir = async (dir) => {
     }
 };
 
+/**
+ * Custom error class for missing tools
+ */
+export class MissingToolsError extends Error {
+    constructor (platform, missingTools) {
+        const missingList = missingTools.map(t => `${t.packager}/${t.name}@${t.version}`).join(', ');
+        super(`Missing tools for ${platform}: ${missingList}`);
+        this.name = 'MissingToolsError';
+        this.platform = platform;
+        this.missingTools = missingTools;
+    }
+}
+
+/**
+ * Package a toolchain by directly downloading resources (no arduino-cli)
+ * @param {object} options - Packaging options
+ * @param {string} options.core - Core identifier (e.g., 'arduino:avr')
+ * @param {string} options.version - Version to package
+ * @param {string} options.platform - Target OpenBlock platform (e.g., 'win32-x64')
+ * @param {string[]} options.indexUrls - Package index URLs
+ * @param {string} options.workDir - Working directory
+ * @returns {Promise<object>} Package result with packagesDir and fallbackUsed properties
+ */
+export const packageToolchainDirect = async (options) => {
+    const {core, version, platform, indexUrls, workDir} = options;
+    const {packager, architecture} = parseCore(core);
+
+    logger.info(`Packaging ${core}@${version} for ${platform}`);
+
+    // Merge all package indexes
+    logger.info('Fetching package indexes...');
+    const packageIndex = await mergePackageIndexes(indexUrls);
+
+    // Collect download resources
+    const resources = collectDownloadResources(packageIndex, packager, architecture, version, platform);
+
+    if (resources.errors.length > 0) {
+        for (const err of resources.errors) {
+            logger.error(err);
+        }
+        throw new Error(`Failed to collect download resources`);
+    }
+
+    if (!resources.platform) {
+        throw new Error(`Platform not found: ${core}@${version}`);
+    }
+
+    // Check for missing tools - if any tool is missing for this platform, skip packaging
+    if (resources.missingTools.length > 0) {
+        throw new MissingToolsError(platform, resources.missingTools);
+    }
+
+    // Create directories
+    const downloadDir = path.join(workDir, 'downloads');
+    const packagesDir = path.join(workDir, 'packages');
+    await fs.mkdir(downloadDir, {recursive: true});
+    await fs.mkdir(packagesDir, {recursive: true});
+
+    // Download and extract platform (core)
+    logger.info(`Downloading platform: ${packager}:${architecture}@${version}`);
+    const platformArchive = path.join(downloadDir, resources.platform.archiveFileName);
+    await downloadAndVerify(resources.platform.url, platformArchive, resources.platform.checksum);
+
+    // Extract platform to packages/{packager}/hardware/{architecture}/{version}/
+    const platformDestDir = path.join(packagesDir, packager, 'hardware', architecture, version);
+    await fs.mkdir(platformDestDir, {recursive: true});
+    await extractArchive(platformArchive, platformDestDir);
+
+    // Move contents if extracted into a subdirectory
+    await flattenExtractedDir(platformDestDir);
+
+    // Download and extract tools
+    logger.info(`Downloading ${resources.tools.length} tools...`);
+    for (const tool of resources.tools) {
+        logger.info(`  Downloading: ${tool.name}@${tool.version}`);
+        const toolArchive = path.join(downloadDir, tool.archiveFileName);
+        await downloadAndVerify(tool.url, toolArchive, tool.checksum);
+
+        // Extract tool to packages/{packager}/tools/{toolname}/{version}/
+        const toolDestDir = path.join(packagesDir, tool.packager, 'tools', tool.name, tool.version);
+        await fs.mkdir(toolDestDir, {recursive: true});
+        await extractArchive(toolArchive, toolDestDir);
+
+        // Move contents if extracted into a subdirectory
+        await flattenExtractedDir(toolDestDir);
+    }
+
+    logger.success(`Package assembled: ${packagesDir}`);
+    return {packagesDir, fallbackUsed: resources.fallbackUsed};
+};
+
 export default {
     downloadFile,
     extractArchive,
@@ -354,6 +366,6 @@ export default {
     verifyChecksum,
     downloadAndVerify,
     mergePackageIndexes,
-    packageToolchainDirect
+    packageToolchainDirect,
+    MissingToolsError
 };
-

@@ -4,12 +4,27 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import {fileURLToPath} from 'url';
 import logger from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGES_JSON_PATH = path.resolve(__dirname, '../../packages.json');
 const REGISTRY_URL = 'https://registry.openblock.cc/packages.json';
+
+/**
+ * Create empty packages.json structure
+ * @returns {object} Empty packages structure
+ */
+export const createEmptyPackagesJson = () => ({
+    schemaVersion: '1.0.0',
+    updatedAt: new Date().toISOString(),
+    packages: {
+        devices: [],
+        extensions: [],
+        libraries: [],
+        toolchains: []
+    }
+});
 
 /**
  * Read packages.json from local file
@@ -57,21 +72,6 @@ export const writePackagesJson = async (data) => {
 };
 
 /**
- * Create empty packages.json structure
- * @returns {object} Empty packages structure
- */
-export const createEmptyPackagesJson = () => ({
-    schemaVersion: '1.0.0',
-    updatedAt: new Date().toISOString(),
-    packages: {
-        devices: [],
-        extensions: [],
-        libraries: [],
-        toolchains: []
-    }
-});
-
-/**
  * Get toolchains from packages.json
  * @param {object} packagesJson - Packages JSON data
  * @returns {Array} Toolchains array
@@ -116,4 +116,3 @@ export default {
     updateToolchains,
     findToolchain
 };
-

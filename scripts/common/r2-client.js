@@ -2,9 +2,8 @@
  * Cloudflare R2 client for uploading and deleting files
  */
 
-import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import {S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand} from '@aws-sdk/client-s3';
 import fs from 'fs/promises';
-import path from 'path';
 import logger from './logger.js';
 
 // R2 configuration from environment variables
@@ -36,6 +35,22 @@ const getClient = () => {
         });
     }
     return s3Client;
+};
+
+/**
+ * Format file size for display
+ * @param {number} bytes - Size in bytes
+ * @returns {string} Formatted size
+ */
+const formatSize = (bytes) => {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex++;
+    }
+    return `${size.toFixed(2)} ${units[unitIndex]}`;
 };
 
 /**
@@ -114,26 +129,9 @@ export const getPublicUrl = (remotePath) => {
     return `${R2_PUBLIC_URL}/${remotePath}`;
 };
 
-/**
- * Format file size for display
- * @param {number} bytes - Size in bytes
- * @returns {string} Formatted size
- */
-const formatSize = (bytes) => {
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unitIndex = 0;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-        size /= 1024;
-        unitIndex++;
-    }
-    return `${size.toFixed(2)} ${units[unitIndex]}`;
-};
-
 export default {
     uploadFile,
     deleteFile,
     fileExists,
     getPublicUrl
 };
-

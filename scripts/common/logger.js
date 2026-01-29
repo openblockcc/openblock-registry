@@ -26,7 +26,9 @@ export const setLogLevel = (level) => {
  * @returns {string} Formatted timestamp
  */
 const timestamp = () => {
-    return new Date().toISOString().replace('T', ' ').substring(0, 19);
+    return new Date().toISOString()
+        .replace('T', ' ')
+        .substring(0, 19);
 };
 
 /**
@@ -105,4 +107,3 @@ export default {
     error,
     section
 };
-

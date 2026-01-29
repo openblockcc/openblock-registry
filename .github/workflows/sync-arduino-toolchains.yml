@@ -46,27 +46,33 @@ jobs:
         if: ${{ inputs.dry_run }}
         working-directory: scripts
         run: |
-          node toolchains/calculate-diff.js | tee diff-output.txt
+          node toolchains/sync.js --dry-run 2>&1 | tee sync-output.txt
 
-          # Write to Job Summary
-          echo "## 🔍 Dry Run Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cat diff-output.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          # Extract markdown report (everything after "## Toolchain Sync Report")
+          if grep -q "## Toolchain Sync Report" sync-output.txt; then
+            sed -n '/## Toolchain Sync Report/,$p' sync-output.txt >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Dry Run Results" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat sync-output.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Sync toolchains
         if: ${{ !inputs.dry_run }}
         working-directory: scripts
         run: |
-          node toolchains/sync.js | tee sync-output.txt
+          node toolchains/sync.js 2>&1 | tee sync-output.txt
 
-          # Write to Job Summary
-          echo "## 🚀 Sync Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cat sync-output.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          # Extract markdown report (everything after "## Toolchain Sync Report")
+          if grep -q "## Toolchain Sync Report" sync-output.txt; then
+            sed -n '/## Toolchain Sync Report/,$p' sync-output.txt >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Sync Results" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat sync-output.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Commit and push packages.json
         if: ${{ !inputs.dry_run }}

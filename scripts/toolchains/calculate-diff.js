@@ -6,11 +6,11 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import {fileURLToPath} from 'url';
 import logger from '../common/logger.js';
-import { readLocalPackagesJson, getToolchains } from '../common/packages-json.js';
-import { OPENBLOCK_PLATFORMS } from './arduino/platform-mapper.js';
-import { fetchPackageIndex, getAvailableVersions, parseCore } from './arduino/index-parser.js';
+import {readLocalPackagesJson, getToolchains} from '../common/packages-json.js';
+import {OPENBLOCK_PLATFORMS} from './arduino/platform-mapper.js';
+import {fetchPackageIndex, getAvailableVersions, parseCore} from './arduino/index-parser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOOLCHAINS_JSON_PATH = path.resolve(__dirname, '../../toolchains.json');
@@ -43,7 +43,7 @@ export const fetchAllPackageIndexes = async (urls) => {
         }
     }
 
-    return { packages: mergedPackages };
+    return {packages: mergedPackages};
 };
 
 /**
@@ -64,7 +64,7 @@ export const fetchLatestVersions = async (config) => {
 
     // Get latest version for each package
     for (const pkg of config.arduino.packages) {
-        const { packager, architecture } = parseCore(pkg.core);
+        const {packager, architecture} = parseCore(pkg.core);
         const versions = getAvailableVersions(packageIndex, packager, architecture);
 
         if (versions.length > 0) {
@@ -144,7 +144,7 @@ export const calculateDiff = (expected, current) => {
 
         for (const platform of expectedPlatforms) {
             if (!currentPlatforms.has(platform)) {
-                toAdd.push({ id, version, platform });
+                toAdd.push({id, version, platform});
             }
         }
     }
@@ -162,12 +162,12 @@ export const calculateDiff = (expected, current) => {
         // If this version is not in expected, delete all its platforms
         if (!expected.has(key)) {
             for (const platform of currentPlatforms) {
-                toDelete.push({ id, version, platform });
+                toDelete.push({id, version, platform});
             }
         }
     }
 
-    return { toAdd, toDelete };
+    return {toAdd, toDelete};
 };
 
 /**
@@ -193,7 +193,7 @@ export const main = async () => {
     logger.info(`Current: ${current.size} toolchain versions in packages.json`);
 
     // Calculate diff
-    const { toAdd, toDelete } = calculateDiff(expected, current);
+    const {toAdd, toDelete} = calculateDiff(expected, current);
 
     // Display results
     logger.section('Diff Results');
@@ -216,7 +216,7 @@ export const main = async () => {
         logger.success('Everything is up to date!');
     }
 
-    return { toAdd, toDelete, latestVersions, config };
+    return {toAdd, toDelete, latestVersions, config};
 };
 
 // Run if executed directly

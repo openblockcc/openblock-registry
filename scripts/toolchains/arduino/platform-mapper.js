@@ -1,94 +1,111 @@
 /**
  * Platform name mapping between Arduino and OpenBlock
+ * Uses fuzzy matching based on arch and OS keywords
  */
 
 /**
- * Mapping from Arduino host names to OpenBlock host names
+ * Platform definitions with arch keywords, exclude keywords, and OS keywords
+ * A host string matches if it contains BOTH an arch keyword AND an OS keyword
+ * and does NOT contain any exclude keyword
  */
-export const ARDUINO_TO_OPENBLOCK = {
-    'i686-mingw32': 'win32-ia32',
-    'x86_64-mingw32': 'win32-x64',
-    'i386-apple-darwin11': 'darwin-x64',
-    'x86_64-apple-darwin': 'darwin-x64',
-    'arm64-apple-darwin': 'darwin-arm64',
-    'x86_64-pc-linux-gnu': 'linux-x64',
-    'i686-pc-linux-gnu': 'linux-ia32',
-    'aarch64-linux-gnu': 'linux-arm64',
-    'arm-linux-gnueabihf': 'linux-arm'
-};
+export const PLATFORM_MATCHERS = [
+    // Windows
+    {
+        platform: 'win32-x64',
+        archKeywords: ['x86_64', 'x64', 'amd64'],
+        osKeywords: ['mingw', 'windows', 'win32', 'win64']
+    },
+    {
+        platform: 'win32-ia32',
+        archKeywords: ['i686', 'i386', 'x86', 'ia32'],
+        excludeKeywords: ['x86_64'],
+        osKeywords: ['mingw', 'windows', 'win32']
+    },
+    // macOS
+    {
+        platform: 'darwin-arm64',
+        archKeywords: ['arm64', 'aarch64'],
+        osKeywords: ['darwin', 'apple', 'macos', 'osx']
+    },
+    {
+        platform: 'darwin-x64',
+        archKeywords: ['x86_64', 'x64', 'amd64', 'i386'],
+        osKeywords: ['darwin', 'apple', 'macos', 'osx']
+    },
+    // Linux
+    {
+        platform: 'linux-arm64',
+        archKeywords: ['arm64', 'aarch64'],
+        osKeywords: ['linux']
+    },
+    {
+        platform: 'linux-arm',
+        archKeywords: ['arm', 'armv6', 'armv7', 'armhf', 'gnueabihf'],
+        excludeKeywords: ['arm64', 'aarch64'],
+        osKeywords: ['linux']
+    },
+    {
+        platform: 'linux-x64',
+        archKeywords: ['x86_64', 'x64', 'amd64'],
+        osKeywords: ['linux']
+    }
+];
 
 /**
- * Mapping from OpenBlock host names to Arduino host names
- */
-export const OPENBLOCK_TO_ARDUINO = Object.fromEntries(
-    Object.entries(ARDUINO_TO_OPENBLOCK).map(([k, v]) => [v, k])
-);
-
-/**
- * All supported OpenBlock platforms
+ * All supported OpenBlock platforms (primary targets)
  */
 export const OPENBLOCK_PLATFORMS = [
-    'win32-ia32',
     'win32-x64',
     'darwin-x64',
     'darwin-arm64',
     'linux-x64',
-    'linux-ia32',
     'linux-arm64',
     'linux-arm'
 ];
 
 /**
- * GitHub runner to platforms mapping
- * Note: With direct download approach, any runner can build all platforms.
- * This mapping is kept for reference but is no longer a limitation.
+ * Platform fallback mapping
+ * When a platform doesn't have native binaries, try the fallback platform
+ * - darwin-arm64 can run x64 binaries via Rosetta 2
+ * - win32-x64 can run ia32 binaries via WoW64
  */
-export const RUNNER_PLATFORMS = {
-    // Any single runner can now build all platforms since we download resources directly
-    'ubuntu-latest': [...OPENBLOCK_PLATFORMS],
-    'windows-latest': [...OPENBLOCK_PLATFORMS],
-    'macos-latest': [...OPENBLOCK_PLATFORMS]
+export const PLATFORM_FALLBACKS = {
+    'darwin-arm64': 'darwin-x64',
+    'win32-x64': 'win32-ia32'
 };
 
 /**
- * Arduino CLI download URLs by platform
- */
-export const ARDUINO_CLI_URLS = {
-    'win32-x64': 'https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip',
-    'win32-ia32': 'https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_32bit.zip',
-    'darwin-x64': 'https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_macOS_64bit.tar.gz',
-    'darwin-arm64': 'https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_macOS_ARM64.tar.gz',
-    'linux-x64': 'https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Linux_64bit.tar.gz',
-    'linux-ia32': 'https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Linux_32bit.tar.gz',
-    'linux-arm64': 'https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Linux_ARM64.tar.gz',
-    'linux-arm': 'https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Linux_ARMv7.tar.gz'
-};
-
-/**
- * Convert Arduino host name to OpenBlock host name
- * @param {string} arduinoHost - Arduino host name
+ * Convert Arduino host name to OpenBlock host name using fuzzy matching
+ * Matches if the host string contains BOTH an arch keyword AND an OS keyword,
+ * and does NOT contain any exclude keyword
+ * @param {string} arduinoHost - Arduino host name (e.g., 'x86_64-apple-darwin14')
  * @returns {string|null} OpenBlock host name or null if not found
  */
 export const toOpenBlockPlatform = (arduinoHost) => {
-    return ARDUINO_TO_OPENBLOCK[arduinoHost] ?? null;
+    if (!arduinoHost) return null;
+
+    const hostLower = arduinoHost.toLowerCase();
+
+    for (const matcher of PLATFORM_MATCHERS) {
+        const hasArch = matcher.archKeywords.some(kw => hostLower.includes(kw.toLowerCase()));
+        const hasOs = matcher.osKeywords.some(kw => hostLower.includes(kw.toLowerCase()));
+        const hasExclude = matcher.excludeKeywords?.some(kw => hostLower.includes(kw.toLowerCase()));
+
+        if (hasArch && hasOs && !hasExclude) {
+            return matcher.platform;
+        }
+    }
+
+    return null;
 };
 
 /**
- * Convert OpenBlock host name to Arduino host name
- * @param {string} openblockHost - OpenBlock host name
- * @returns {string|null} Arduino host name or null if not found
- */
-export const toArduinoPlatform = (openblockHost) => {
-    return OPENBLOCK_TO_ARDUINO[openblockHost] ?? null;
-};
-
-/**
- * Get Arduino CLI download URL for a platform
+ * Get fallback platform for a given platform
  * @param {string} platform - OpenBlock platform name
- * @returns {string|null} Download URL or null if not found
+ * @returns {string|null} Fallback platform or null if no fallback
  */
-export const getArduinoCliUrl = (platform) => {
-    return ARDUINO_CLI_URLS[platform] ?? null;
+export const getFallbackPlatform = (platform) => {
+    return PLATFORM_FALLBACKS[platform] ?? null;
 };
 
 /**
@@ -101,14 +118,10 @@ export const isPlatformSupported = (platform) => {
 };
 
 export default {
-    ARDUINO_TO_OPENBLOCK,
-    OPENBLOCK_TO_ARDUINO,
+    PLATFORM_MATCHERS,
     OPENBLOCK_PLATFORMS,
-    RUNNER_PLATFORMS,
-    ARDUINO_CLI_URLS,
+    PLATFORM_FALLBACKS,
     toOpenBlockPlatform,
-    toArduinoPlatform,
-    getArduinoCliUrl,
+    getFallbackPlatform,
     isPlatformSupported
 };
-

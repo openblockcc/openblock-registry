@@ -1,0 +1,32 @@
+{
+    "extends": ["scratch", "scratch/node"],
+    "env": {
+        "es6": true,
+        "node": true
+    },
+    "parserOptions": {
+        "ecmaVersion": 2020,
+        "sourceType": "module"
+    },
+    "globals": {
+        "fetch": "readonly"
+    },
+    "rules": {
+        "no-console": "off",
+        "no-use-before-define": ["error", {
+            "functions": false,
+            "classes": true,
+            "variables": true
+        }],
+        "max-len": ["error", {
+            "code": 150,
+            "ignoreUrls": true,
+            "ignoreStrings": true,
+            "ignoreTemplateLiterals": true
+        }],
+        "no-unused-vars": ["error", {
+            "argsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_"
+        }]
+    }
+}

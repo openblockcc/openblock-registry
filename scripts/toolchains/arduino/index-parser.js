@@ -4,7 +4,26 @@
  */
 
 import logger from '../../common/logger.js';
-import { toOpenBlockPlatform, OPENBLOCK_PLATFORMS } from './platform-mapper.js';
+import {toOpenBlockPlatform, getFallbackPlatform} from './platform-mapper.js';
+
+/**
+ * Compare semantic versions
+ * @param {string} a - Version A
+ * @param {string} b - Version B
+ * @returns {number} -1 if a < b, 0 if a == b, 1 if a > b
+ */
+const compareVersions = (a, b) => {
+    const partsA = a.split('.').map(n => parseInt(n, 10) || 0);
+    const partsB = b.split('.').map(n => parseInt(n, 10) || 0);
+
+    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+        const numA = partsA[i] ?? 0;
+        const numB = partsB[i] ?? 0;
+        if (numA < numB) return -1;
+        if (numA > numB) return 1;
+    }
+    return 0;
+};
 
 /**
  * Fetch and parse Arduino package index from URL
@@ -118,14 +137,16 @@ export const getToolPlatforms = (tool) => {
 };
 
 /**
- * Get tool system info for a specific platform
+ * Get tool system info for a specific platform (with fallback support)
  * @param {object} tool - Tool object from package index
  * @param {string} targetPlatform - Target OpenBlock platform (e.g., 'win32-x64')
- * @returns {object|null} System object with url, checksum, size, or null if not found
+ * @param {string} toolName - Tool name for logging (optional)
+ * @returns {object|null} System object with url, checksum, size, fallbackUsed, or null if not found
  */
-export const getToolSystemForPlatform = (tool, targetPlatform) => {
+export const getToolSystemForPlatform = (tool, targetPlatform, toolName = '') => {
     if (!tool?.systems) return null;
 
+    // Try to find exact match first
     for (const system of tool.systems) {
         const openblockPlatform = toOpenBlockPlatform(system.host);
         if (openblockPlatform === targetPlatform) {
@@ -134,10 +155,36 @@ export const getToolSystemForPlatform = (tool, targetPlatform) => {
                 checksum: system.checksum,
                 size: system.size,
                 archiveFileName: system.archiveFileName,
-                host: system.host
+                host: system.host,
+                fallbackUsed: null
             };
         }
     }
+
+    // Try fallback platform if available
+    const fallbackPlatform = getFallbackPlatform(targetPlatform);
+    if (fallbackPlatform) {
+        for (const system of tool.systems) {
+            const openblockPlatform = toOpenBlockPlatform(system.host);
+            if (openblockPlatform === fallbackPlatform) {
+                logger.debug(`Using fallback ${fallbackPlatform} for ${targetPlatform}${toolName ? ` (${toolName})` : ''}`);
+                return {
+                    url: system.url,
+                    checksum: system.checksum,
+                    size: system.size,
+                    archiveFileName: system.archiveFileName,
+                    host: system.host,
+                    fallbackUsed: fallbackPlatform
+                };
+            }
+        }
+        // Fallback also failed
+        logger.warn(`No binary found for ${targetPlatform} or fallback ${fallbackPlatform}${toolName ? ` (${toolName})` : ''}`);
+    } else {
+        // No fallback available
+        logger.warn(`No binary found for ${targetPlatform}${toolName ? ` (${toolName})` : ''}`);
+    }
+
     return null;
 };
 
@@ -148,13 +195,14 @@ export const getToolSystemForPlatform = (tool, targetPlatform) => {
  * @param {string} architecture - Architecture name (e.g., 'avr')
  * @param {string} version - Core version
  * @param {string} targetPlatform - Target OpenBlock platform (e.g., 'win32-x64')
- * @returns {object} Download manifest with platform and tools info
+ * @returns {object} Download manifest with platform, tools, missingTools, fallbackUsed, errors
  */
 export const collectDownloadResources = (packageIndex, packager, architecture, version, targetPlatform) => {
     const result = {
         platform: null,
         tools: [],
-        missingTools: [],  // Tools that don't have binaries for target platform
+        missingTools: [], // Tools that don't have binaries for target platform
+        fallbackUsed: null, // Fallback platform if any tool used fallback
         errors: []
     };
 
@@ -191,7 +239,8 @@ export const collectDownloadResources = (packageIndex, packager, architecture, v
         }
 
         // Get system for target platform
-        const system = getToolSystemForPlatform(tool, targetPlatform);
+        const fullToolName = `${toolPackager}/${toolName}@${toolVersion}`;
+        const system = getToolSystemForPlatform(tool, targetPlatform, fullToolName);
         if (!system) {
             // Tool doesn't have binaries for this platform - record as missing
             result.missingTools.push({
@@ -200,6 +249,11 @@ export const collectDownloadResources = (packageIndex, packager, architecture, v
                 version: toolVersion
             });
             continue;
+        }
+
+        // Track if fallback was used
+        if (system.fallbackUsed && !result.fallbackUsed) {
+            result.fallbackUsed = system.fallbackUsed;
         }
 
         result.tools.push({
@@ -217,32 +271,13 @@ export const collectDownloadResources = (packageIndex, packager, architecture, v
 };
 
 /**
- * Compare semantic versions
- * @param {string} a - Version A
- * @param {string} b - Version B
- * @returns {number} -1 if a < b, 0 if a == b, 1 if a > b
- */
-const compareVersions = (a, b) => {
-    const partsA = a.split('.').map(n => parseInt(n, 10) || 0);
-    const partsB = b.split('.').map(n => parseInt(n, 10) || 0);
-
-    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
-        const numA = partsA[i] ?? 0;
-        const numB = partsB[i] ?? 0;
-        if (numA < numB) return -1;
-        if (numA > numB) return 1;
-    }
-    return 0;
-};
-
-/**
  * Parse core string (e.g., 'arduino:avr' or 'esp32:esp32')
  * @param {string} core - Core string
  * @returns {{packager: string, architecture: string}} Parsed core
  */
 export const parseCore = (core) => {
     const [packager, architecture] = core.split(':');
-    return { packager, architecture };
+    return {packager, architecture};
 };
 
 export default {
@@ -256,4 +291,3 @@ export default {
     collectDownloadResources,
     parseCore
 };
-

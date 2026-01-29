@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "sync:toolchains": "node toolchains/sync.js",
-    "diff:toolchains": "node toolchains/calculate-diff.js"
+    "diff:toolchains": "node toolchains/calculate-diff.js",
+    "lint": "eslint . --ext .js --fix"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.500.0",
@@ -15,6 +16,10 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "babel-eslint": "^10.0.1",
+    "eslint": "^5.16.0",
+    "eslint-config-scratch": "^6.0.0"
   }
 }
-

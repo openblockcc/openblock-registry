@@ -6,7 +6,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { fileURLToPath } from 'url';
+import {fileURLToPath} from 'url';
 import logger from '../common/logger.js';
 import r2Client from '../common/r2-client.js';
 import {
@@ -25,8 +25,10 @@ import {
 } from './calculate-diff.js';
 import {
     createZipArchive,
-    packageToolchainDirect
+    packageToolchainDirect,
+    MissingToolsError
 } from './arduino/packager.js';
+import {OPENBLOCK_PLATFORMS} from './arduino/platform-mapper.js';
 
 
 /**
@@ -34,14 +36,15 @@ import {
  * Downloads resources directly without arduino-cli, enabling cross-platform packaging
  * @param {object} item - Item to package {id, version, platform}
  * @param {object} config - Toolchains config
- * @returns {Promise<object>} Package info {url, checksum, size, archiveFileName}
+ * @returns {Promise<object>} Package info {url, checksum, size, archiveFileName, fallbackUsed}
  */
 const packageArduinoToolchain = async (item, config) => {
-    const { id, version, platform } = item;
-    const workDir = path.join(os.tmpdir(), `openblock-toolchain-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    const {id, version, platform} = item;
+    const workDir = path.join(os.tmpdir(), `openblock-toolchain-${Date.now()}-${Math.random().toString(36)
+        .slice(2, 8)}`);
 
     try {
-        await fs.mkdir(workDir, { recursive: true });
+        await fs.mkdir(workDir, {recursive: true});
 
         // Find package config
         const pkgConfig = config.arduino.packages.find(p => p.id === id);
@@ -57,7 +60,7 @@ const packageArduinoToolchain = async (item, config) => {
         }
 
         // Package using direct download (no arduino-cli needed)
-        const { packagesDir } = await packageToolchainDirect({
+        const {packagesDir, fallbackUsed} = await packageToolchainDirect({
             core: pkgConfig.core,
             version,
             platform,
@@ -69,27 +72,29 @@ const packageArduinoToolchain = async (item, config) => {
         const archiveFileName = `${id}-${platform}-${version}.zip`;
         const archivePath = path.join(workDir, archiveFileName);
         logger.info(`Creating archive: ${archiveFileName}`);
-        const { size, checksum } = await createZipArchive(packagesDir, archivePath);
+        const {size, checksum} = await createZipArchive(packagesDir, archivePath);
 
         // Upload to R2
         const remotePath = `toolchains/${archiveFileName}`;
-        const { url } = await r2Client.uploadFile(archivePath, remotePath);
+        const {url} = await r2Client.uploadFile(archivePath, remotePath);
 
         return {
             url,
             checksum,
             host: platform,
             archiveFileName,
-            size: String(size)
+            size: String(size),
+            fallbackUsed
         };
     } finally {
         // Cleanup
-        await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
+        await fs.rm(workDir, {recursive: true, force: true}).catch(() => {});
     }
 };
 
 /**
  * Update packages.json with new toolchains and remove deleted ones
+ * Also uploads the updated packages.json to R2
  * @param {Array} toAdd - Items that were added
  * @param {Map<string, object>} addedSystems - Map of "id@version#platform" -> system info
  * @param {Array} toDelete - Items that were deleted
@@ -117,7 +122,7 @@ const updatePackagesJsonFile = async (toAdd, addedSystems, toDelete = []) => {
 
         let toolchain = findToolchain(toolchains, item.id, item.version);
         if (!toolchain) {
-            toolchain = { id: item.id, version: item.version, systems: [] };
+            toolchain = {id: item.id, version: item.version, systems: []};
             toolchains.push(toolchain);
         }
         toolchain.systems.push(systemInfo);
@@ -128,11 +133,116 @@ const updatePackagesJsonFile = async (toAdd, addedSystems, toDelete = []) => {
 
     // Sort systems within each toolchain
     for (const toolchain of toolchains) {
-        toolchain.systems?.sort((a, b) => a.host.localeCompare(b.host));
+        if (toolchain.systems) {
+            toolchain.systems.sort((a, b) => a.host.localeCompare(b.host));
+        }
     }
 
     const updated = updateToolchains(packagesJson, toolchains);
     await writePackagesJson(updated);
+
+    // Upload packages.json to R2
+    const packagesJsonPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../packages.json');
+    await r2Client.uploadFile(packagesJsonPath, 'packages.json');
+};
+
+/**
+ * Generate markdown sync report
+ * @param {object} reportData - Report data
+ * @returns {string} Markdown report
+ */
+const generateSyncReport = (reportData) => {
+    const {toolchainResults, deleted, summary, dryRun} = reportData;
+    const lines = [];
+
+    lines.push('## Toolchain Sync Report');
+    lines.push('');
+
+    if (dryRun) {
+        lines.push('> **Dry Run** - No changes were made');
+        lines.push('');
+    }
+
+    // Overview
+    lines.push('### 概览');
+    lines.push('| 成功 | 跳过 | 删除 | 失败 |');
+    lines.push('|------|------|------|------|');
+    lines.push(`| ${summary.success} | ${summary.skipped} | ${summary.deleted} | ${summary.failed} |`);
+    lines.push('');
+
+    // Build toolchain results table
+    if (toolchainResults.size > 0) {
+        lines.push('### 打包结果');
+        lines.push('');
+        lines.push(`| Toolchain | 版本 | ${OPENBLOCK_PLATFORMS.join(' | ')} |`);
+        lines.push(`|-----------|------|${OPENBLOCK_PLATFORMS.map(() => ':--------:').join('|')}|`);
+
+        // Group results by toolchain id+version
+        for (const [key, platforms] of toolchainResults) {
+            const [id, version] = key.split('@');
+            const cells = OPENBLOCK_PLATFORMS.map(platform => {
+                const result = platforms.get(platform);
+                if (!result) return '';
+                switch (result.status) {
+                case 'ok': return 'OK';
+                case 'ok-fallback-darwin': return 'OK*';
+                case 'ok-fallback-win32': return 'OK**';
+                case 'skipped': return '-';
+                case 'failed': return 'X';
+                default: return '';
+                }
+            });
+            lines.push(`| ${id} | ${version} | ${cells.join(' | ')} |`);
+        }
+        lines.push('');
+        lines.push('**说明：**');
+        lines.push('- `OK` - 成功');
+        lines.push('- `OK*` - 使用 darwin-x64 回退');
+        lines.push('- `OK**` - 使用 win32-ia32 回退');
+        lines.push('- `-` - 跳过 (缺少工具)');
+        lines.push('- `X` - 失败');
+        lines.push('');
+    }
+
+    // Deleted toolchains
+    if (deleted.length > 0) {
+        lines.push('### 已删除');
+        lines.push('');
+        lines.push('| Toolchain | 版本 | 平台 |');
+        lines.push('|-----------|------|------|');
+        for (const item of deleted) {
+            lines.push(`| ${item.id} | ${item.version} | ${item.platform} |`);
+        }
+        lines.push('');
+    }
+
+    // Missing tools details
+    const missingToolsDetails = [];
+    for (const [key, platforms] of toolchainResults) {
+        for (const [platform, result] of platforms) {
+            if (result.status === 'skipped' && result.missingTools?.length > 0) {
+                missingToolsDetails.push({
+                    toolchain: key,
+                    platform,
+                    missingTools: result.missingTools
+                });
+            }
+        }
+    }
+
+    if (missingToolsDetails.length > 0) {
+        lines.push('### 缺失工具详情');
+        lines.push('');
+        lines.push('| Toolchain | 平台 | 缺失工具 |');
+        lines.push('|-----------|------|----------|');
+        for (const detail of missingToolsDetails) {
+            const tools = detail.missingTools.map(t => `${t.packager}/${t.name}@${t.version}`).join(', ');
+            lines.push(`| ${detail.toolchain} | ${detail.platform} | ${tools} |`);
+        }
+        lines.push('');
+    }
+
+    return lines.join('\n');
 };
 
 /**
@@ -142,7 +252,7 @@ const updatePackagesJsonFile = async (toAdd, addedSystems, toDelete = []) => {
  * @param {string} options.platform - Only process this platform (optional)
  */
 export const sync = async (options = {}) => {
-    const { dryRun = false, platform = null } = options;
+    const {dryRun = false, platform = null} = options;
 
     logger.section('OpenBlock Toolchain Sync');
 
@@ -158,7 +268,7 @@ export const sync = async (options = {}) => {
     // Build states and calculate diff
     const expected = buildExpectedState(config, latestVersions);
     const current = buildCurrentState(toolchains);
-    let { toAdd, toDelete } = calculateDiff(expected, current);
+    let {toAdd, toDelete} = calculateDiff(expected, current);
 
     // Filter by platform if specified
     if (platform) {
@@ -169,27 +279,51 @@ export const sync = async (options = {}) => {
     logger.info(`To Add: ${toAdd.length} items`);
     logger.info(`To Delete: ${toDelete.length} items`);
 
+    // Initialize report data
+    // toolchainResults: Map<"id@version", Map<platform, {status, missingTools?, error?}>>
+    const toolchainResults = new Map();
+    const deletedItems = [];
+    let successCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+
+    // Helper to add result to toolchainResults
+    const addResult = (id, version, targetPlatform, result) => {
+        const key = `${id}@${version}`;
+        if (!toolchainResults.has(key)) {
+            toolchainResults.set(key, new Map());
+        }
+        toolchainResults.get(key).set(targetPlatform, result);
+    };
+
     if (toAdd.length === 0 && toDelete.length === 0) {
         logger.success('Everything is up to date!');
-        return { added: 0, deleted: 0 };
+        return {added: 0, deleted: 0, report: null};
     }
 
     if (dryRun) {
         logger.section('Dry Run - No changes will be made');
-        if (toAdd.length > 0) {
-            logger.info('Would add:');
-            toAdd.forEach(item => console.log(`  + ${item.id}@${item.version}#${item.platform}`));
+        // Populate results for dry run display
+        for (const item of toAdd) {
+            addResult(item.id, item.version, item.platform, {status: 'ok'});
+            successCount++;
         }
-        if (toDelete.length > 0) {
-            logger.info('Would delete:');
-            toDelete.forEach(item => console.log(`  - ${item.id}@${item.version}#${item.platform}`));
+        for (const item of toDelete) {
+            deletedItems.push(item);
         }
-        return { added: 0, deleted: 0, wouldAdd: toAdd.length, wouldDelete: toDelete.length };
+
+        const report = generateSyncReport({
+            toolchainResults,
+            deleted: deletedItems,
+            summary: {success: successCount, skipped: 0, deleted: toDelete.length, failed: 0},
+            dryRun: true
+        });
+        console.log('\n' + report);
+        return {added: 0, deleted: 0, wouldAdd: toAdd.length, wouldDelete: toDelete.length, report};
     }
 
     // Process additions first (ensure new versions are uploaded before deleting old ones)
     const addedSystems = new Map();
-    const skippedPlatforms = [];
     if (toAdd.length > 0) {
         logger.section('Packaging new toolchains');
         for (const item of toAdd) {
@@ -198,13 +332,32 @@ export const sync = async (options = {}) => {
                 const systemInfo = await packageArduinoToolchain(item, config);
                 const key = `${item.id}@${item.version}#${item.platform}`;
                 addedSystems.set(key, systemInfo);
+
+                // Determine result status based on fallback
+                let status = 'ok';
+                if (systemInfo.fallbackUsed === 'darwin-x64') {
+                    status = 'ok-fallback-darwin';
+                } else if (systemInfo.fallbackUsed === 'win32-ia32') {
+                    status = 'ok-fallback-win32';
+                }
+                addResult(item.id, item.version, item.platform, {status});
+                successCount++;
             } catch (err) {
-                // Check if this is a "missing tools" error - skip platform gracefully
-                if (err.message.startsWith('Missing tools for')) {
+                // Check if this is a MissingToolsError
+                if (err instanceof MissingToolsError) {
                     logger.warn(`Skipping ${item.platform}: ${err.message}`);
-                    skippedPlatforms.push(`${item.id}@${item.version}#${item.platform}`);
+                    addResult(item.id, item.version, item.platform, {
+                        status: 'skipped',
+                        missingTools: err.missingTools
+                    });
+                    skippedCount++;
                 } else {
                     logger.error(`Failed to package ${item.id}@${item.version}#${item.platform}: ${err.message}`);
+                    addResult(item.id, item.version, item.platform, {
+                        status: 'failed',
+                        error: err.message
+                    });
+                    failedCount++;
                 }
             }
         }
@@ -220,6 +373,7 @@ export const sync = async (options = {}) => {
                 const remotePath = `toolchains/${archiveFileName}`;
                 logger.info(`Deleting: ${archiveFileName}`);
                 await r2Client.deleteFile(remotePath);
+                deletedItems.push(item);
                 deletedCount++;
             } catch (err) {
                 logger.error(`Failed to delete ${item.id}@${item.version}#${item.platform}: ${err.message}`);
@@ -233,14 +387,18 @@ export const sync = async (options = {}) => {
         await updatePackagesJsonFile(toAdd, addedSystems, toDelete);
     }
 
-    logger.section('Sync Complete');
-    let summary = `Added: ${addedSystems.size}, Deleted: ${deletedCount}`;
-    if (skippedPlatforms.length > 0) {
-        summary += `, Skipped: ${skippedPlatforms.length} (missing tools)`;
-    }
-    logger.success(summary);
+    // Generate report
+    const report = generateSyncReport({
+        toolchainResults,
+        deleted: deletedItems,
+        summary: {success: successCount, skipped: skippedCount, deleted: deletedCount, failed: failedCount},
+        dryRun: false
+    });
 
-    return { added: addedSystems.size, deleted: deletedCount, skipped: skippedPlatforms.length };
+    logger.section('Sync Complete');
+    console.log('\n' + report);
+
+    return {added: addedSystems.size, deleted: deletedCount, skipped: skippedCount, failed: failedCount, report};
 };
 
 /**
@@ -273,5 +431,4 @@ if (process.argv[1] === __filename) {
     });
 }
 
-export default { sync };
-
+export default {sync};
