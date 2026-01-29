@@ -40,17 +40,33 @@ jobs:
 
       - name: Install dependencies
         working-directory: scripts
-        run: npm ci
+        run: npm install
 
       - name: Calculate diff (dry run)
         if: ${{ inputs.dry_run }}
         working-directory: scripts
-        run: node toolchains/calculate-diff.js
+        run: |
+          node toolchains/calculate-diff.js | tee diff-output.txt
+
+          # Write to Job Summary
+          echo "## 🔍 Dry Run Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          cat diff-output.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Sync toolchains
         if: ${{ !inputs.dry_run }}
         working-directory: scripts
-        run: node toolchains/sync.js
+        run: |
+          node toolchains/sync.js | tee sync-output.txt
+
+          # Write to Job Summary
+          echo "## 🚀 Sync Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          cat sync-output.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Commit and push packages.json
         if: ${{ !inputs.dry_run }}
