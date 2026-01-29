@@ -1,0 +1,48 @@
+{
+  "arduino": {
+    "board_manager": {
+      "additional_urls": [
+        "https://downloads.arduino.cc/packages/package_index.json",
+        "https://espressif.github.io/arduino-esp32/package_esp32_index.json",
+        "https://arduino.esp8266.com/stable/package_esp8266com_index.json",
+        "https://raw.githubusercontent.com/sparkfun/Arduino_Boards/master/IDE_Board_Manager/package_sparkfun_index.json",
+        "http://dl.sipeed.com/MAIX/Maixduino/package_Maixduino_k210_index.json",
+        "https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json"
+      ]
+    },
+    "packages": [
+      {
+        "id": "arduino-arduino-avr",
+        "core": "arduino:avr"
+      },
+      {
+        "id": "arduino-arduino-renesas_uno",
+        "core": "arduino:renesas_uno"
+      },
+      {
+        "id": "arduino-esp32-esp32",
+        "core": "esp32:esp32"
+      },
+      {
+        "id": "arduino-esp8266-esp8266",
+        "core": "esp8266:esp8266"
+      },
+      {
+        "id": "arduino-maixduino-k210",
+        "core": "Maixduino:k210"
+      },
+      {
+        "id": "arduino-sparkFun-avr",
+        "core": "SparkFun:avr"
+      },
+      {
+        "id": "arduino-rp2040-rp2040",
+        "core": "rp2040:rp2040"
+      }
+    ]
+  },
+  "python": {
+    "packages": []
+  }
+}
+

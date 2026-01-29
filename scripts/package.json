@@ -1,0 +1,20 @@
+{
+  "name": "openblock-registry-scripts",
+  "version": "1.0.0",
+  "description": "Scripts for managing OpenBlock Registry",
+  "type": "module",
+  "scripts": {
+    "sync:toolchains": "node toolchains/sync.js",
+    "diff:toolchains": "node toolchains/calculate-diff.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.500.0",
+    "archiver": "^6.0.1",
+    "chalk": "^5.3.0",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+

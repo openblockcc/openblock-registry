@@ -1,0 +1,169 @@
+name: Sync Arduino Toolchains
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run - only show what would be done'
+        type: boolean
+        default: false
+
+  # Weekly schedule - every Monday at 00:00 UTC
+  schedule:
+    - cron: '0 0 * * 1'
+
+  # Trigger on toolchains.json changes
+  push:
+    paths:
+      - 'toolchains.json'
+    branches:
+      - main
+
+env:
+  R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+
+jobs:
+  # First job: Calculate diff and determine what needs to be done
+  calculate-diff:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.diff.outputs.has_changes }}
+      to_add: ${{ steps.diff.outputs.to_add }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm ci
+
+      - name: Calculate diff
+        id: diff
+        working-directory: scripts
+        run: |
+          # Run the diff calculation script
+          node toolchains/calculate-diff.js 2>&1 | tee diff-output.txt
+
+          # Extract toAdd items using a separate script
+          TO_ADD=$(node -e "
+            import('./toolchains/calculate-diff.js').then(async (mod) => {
+              const result = await mod.main();
+              console.log(JSON.stringify(result.toAdd));
+            });
+          ")
+
+          echo "to_add=$TO_ADD" >> $GITHUB_OUTPUT
+
+          if [ "$TO_ADD" != "[]" ] && [ -n "$TO_ADD" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build matrix
+        id: matrix
+        if: steps.diff.outputs.has_changes == 'true'
+        run: |
+          # Group items by platform for parallel execution
+          MATRIX=$(echo '${{ steps.diff.outputs.to_add }}' | jq -c '
+            group_by(.platform) |
+            map({
+              platform: .[0].platform,
+              items: .
+            }) |
+            {include: .}
+          ')
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+  # Second job: Package toolchains on each platform
+  package:
+    needs: calculate-diff
+    if: needs.calculate-diff.outputs.has_changes == 'true' && !inputs.dry_run
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.calculate-diff.outputs.matrix) }}
+    runs-on: ${{ contains(matrix.platform, 'win32') && 'windows-latest' ||
+                 contains(matrix.platform, 'darwin-arm64') && 'macos-14' ||
+                 contains(matrix.platform, 'darwin') && 'macos-13' ||
+                 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm ci
+
+      - name: Package toolchains for ${{ matrix.platform }}
+        working-directory: scripts
+        run: node toolchains/sync.js --platform ${{ matrix.platform }}
+
+      - name: Upload updated packages.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-json-${{ matrix.platform }}
+          path: packages.json
+
+  # Third job: Merge packages.json updates and commit
+  finalize:
+    needs: [calculate-diff, package]
+    if: always() && needs.calculate-diff.outputs.has_changes == 'true' && !inputs.dry_run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm ci
+
+      - name: Download all packages.json artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: packages-json-*
+          path: artifacts
+
+      - name: Merge packages.json files
+        run: |
+          node scripts/toolchains/merge-packages.js artifacts/
+
+      - name: Commit and push packages.json
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add packages.json
+          git diff --staged --quiet || git commit -m "chore: update packages.json with synced toolchains"
+          git push
+
+  # Dry run job - shows what would be added
+  dry-run:
+    needs: calculate-diff
+    if: inputs.dry_run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show diff summary
+        run: |
+          echo "=== Dry Run Mode ==="
+          echo ""
+          echo "Has changes: ${{ needs.calculate-diff.outputs.has_changes }}"
+          echo ""
+          echo "Items to add:"
+          echo '${{ needs.calculate-diff.outputs.to_add }}' | jq '.'
