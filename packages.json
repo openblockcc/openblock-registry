@@ -325,6 +325,47 @@
                         "size": "1702116"
                     }
                 ]
+            },
+            {
+                "id": "arduino-stm32-stm32",
+                "version": "2.12.0",
+                "systems": [
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-stm32-stm32-darwin-arm64-2.12.0.zip",
+                        "checksum": "SHA-256:3DA4E5C4C895308E2B268F1D52DA4651B21A93C49387ED44B463E385AAC03690",
+                        "host": "darwin-arm64",
+                        "archiveFileName": "arduino-stm32-stm32-darwin-arm64-2.12.0.zip",
+                        "size": "396929653"
+                    },
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-stm32-stm32-darwin-x64-2.12.0.zip",
+                        "checksum": "SHA-256:C25F8F58D7D71A5FEA9063122FBD862EEA4ABB481F6D31D092D94483E397D6CE",
+                        "host": "darwin-x64",
+                        "archiveFileName": "arduino-stm32-stm32-darwin-x64-2.12.0.zip",
+                        "size": "400335581"
+                    },
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-stm32-stm32-linux-arm64-2.12.0.zip",
+                        "checksum": "SHA-256:8A05F7C469C5EE2CE91D78C2CDB43FFF27027AC576ED01135AB07D6096D08C98",
+                        "host": "linux-arm64",
+                        "archiveFileName": "arduino-stm32-stm32-linux-arm64-2.12.0.zip",
+                        "size": "404359815"
+                    },
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-stm32-stm32-linux-x64-2.12.0.zip",
+                        "checksum": "SHA-256:071D2AE5BDAEDBA9CBD33AA65398782CD809C9B23B46F04EC8423FECD6CA3B67",
+                        "host": "linux-x64",
+                        "archiveFileName": "arduino-stm32-stm32-linux-x64-2.12.0.zip",
+                        "size": "407170420"
+                    },
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-stm32-stm32-win32-x64-2.12.0.zip",
+                        "checksum": "SHA-256:8364549B5BAF67FC1F1DDC4D6FCB205D94691AD63482864E81AC5490E2B42DCD",
+                        "host": "win32-x64",
+                        "archiveFileName": "arduino-stm32-stm32-win32-x64-2.12.0.zip",
+                        "size": "448627119"
+                    }
+                ]
             }
         ]
     }
