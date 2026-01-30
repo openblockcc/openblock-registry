@@ -244,6 +244,40 @@
                 ]
             },
             {
+                "id": "arduino-maixduino-k210",
+                "version": "0.3.11",
+                "systems": [
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-maixduino-k210-darwin-arm64-0.3.11.zip",
+                        "checksum": "SHA-256:B3C360F204BCBD9DDC7806771BE91C475E6E3CDCA92CAAB88BCAB173BED4CB9B",
+                        "host": "darwin-arm64",
+                        "archiveFileName": "arduino-maixduino-k210-darwin-arm64-0.3.11.zip",
+                        "size": "64940555"
+                    },
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-maixduino-k210-darwin-x64-0.3.11.zip",
+                        "checksum": "SHA-256:BFA3A07A9A30AE7522432D43A7E2D33349621BF2C29B09F70FAFAD8EF9D7B282",
+                        "host": "darwin-x64",
+                        "archiveFileName": "arduino-maixduino-k210-darwin-x64-0.3.11.zip",
+                        "size": "64940555"
+                    },
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-maixduino-k210-linux-x64-0.3.11.zip",
+                        "checksum": "SHA-256:6C4045349E5043B39BD29E3755D995AE56431EA3D781D690CB4DFED944CAEFD3",
+                        "host": "linux-x64",
+                        "archiveFileName": "arduino-maixduino-k210-linux-x64-0.3.11.zip",
+                        "size": "64381823"
+                    },
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-maixduino-k210-win32-x64-0.3.11.zip",
+                        "checksum": "SHA-256:45CC9D6642F444B28EAAC680BD5F4B6FACD55279F6739D56BB453B637A2F01F1",
+                        "host": "win32-x64",
+                        "archiveFileName": "arduino-maixduino-k210-win32-x64-0.3.11.zip",
+                        "size": "63519752"
+                    }
+                ]
+            },
+            {
                 "id": "arduino-rp2040-rp2040",
                 "version": "5.5.0",
                 "systems": [
@@ -369,5 +403,5 @@
             }
         ]
     },
-    "updatedAt": "2026-01-30T02:40:00.388Z"
+    "updatedAt": "2026-01-30T03:11:25.303Z"
 }
