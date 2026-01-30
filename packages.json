@@ -10,6 +10,22 @@
                 "version": "1.8.7",
                 "systems": [
                     {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-arduino-avr-darwin-arm64-1.8.7.zip",
+                        "checksum": "SHA-256:8EEED49AC72470E184C5EFC1B2BF694BF39034D4572C81E9209EE9E4B759773A",
+                        "host": "darwin-arm64",
+                        "archiveFileName": "arduino-arduino-avr-darwin-arm64-1.8.7.zip",
+                        "size": "67176691",
+                        "fallbackUsed": "darwin-x64"
+                    },
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-arduino-avr-darwin-x64-1.8.7.zip",
+                        "checksum": "SHA-256:79E2032B6D22F8968A3FC2167FF5134172E5424F8651136BDF358B6FB14BCF97",
+                        "host": "darwin-x64",
+                        "archiveFileName": "arduino-arduino-avr-darwin-x64-1.8.7.zip",
+                        "size": "67176691",
+                        "fallbackUsed": null
+                    },
+                    {
                         "url": "https://registry.openblock.cc/toolchains/arduino-arduino-avr-linux-arm-1.8.7.zip",
                         "checksum": "SHA-256:EEEB90B26AC2D97994CCF0BFBB2AA9843CF5C4DAC370892D32E65B5CB0CE3041",
                         "host": "linux-arm",
@@ -24,11 +40,27 @@
                         "size": "68125077"
                     },
                     {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-arduino-avr-linux-x64-1.8.7.zip",
+                        "checksum": "SHA-256:E1EB06664B3C2D0E8E9C5BCCA98C534289F77198BAFDA7B7A5EF658D16BF7697",
+                        "host": "linux-x64",
+                        "archiveFileName": "arduino-arduino-avr-linux-x64-1.8.7.zip",
+                        "size": "67886850",
+                        "fallbackUsed": null
+                    },
+                    {
                         "url": "https://registry.openblock.cc/toolchains/arduino-arduino-avr-win32-ia32-1.8.7.zip",
                         "checksum": "SHA-256:C940F1140C8E0B5FD7E631D9F393FF0CE9A57EC372615B6373865C11B0158026",
                         "host": "win32-ia32",
                         "archiveFileName": "arduino-arduino-avr-win32-ia32-1.8.7.zip",
                         "size": "65497772"
+                    },
+                    {
+                        "url": "https://registry.openblock.cc/toolchains/arduino-arduino-avr-win32-x64-1.8.7.zip",
+                        "checksum": "SHA-256:1DFC6A3EF50543778DE2C7D52D9C12DC9943B52A48B2FE357073AC981ED533C9",
+                        "host": "win32-x64",
+                        "archiveFileName": "arduino-arduino-avr-win32-x64-1.8.7.zip",
+                        "size": "65497772",
+                        "fallbackUsed": "win32-ia32"
                     }
                 ]
             },
@@ -337,5 +369,5 @@
             }
         ]
     },
-    "updatedAt": "2026-01-29T16:42:34.798Z"
+    "updatedAt": "2026-01-30T02:40:00.388Z"
 }
