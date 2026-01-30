@@ -16,8 +16,6 @@ const REGISTRY_URL = 'https://registry.openblock.cc/packages.json';
  * @returns {object} Empty packages structure
  */
 export const createEmptyPackagesJson = () => ({
-    schemaVersion: '1.0.0',
-    updatedAt: new Date().toISOString(),
     packages: {
         devices: [],
         extensions: [],
@@ -65,7 +63,6 @@ export const fetchRemotePackagesJson = async () => {
  * @param {object} data - Packages JSON data
  */
 export const writePackagesJson = async (data) => {
-    data.updatedAt = new Date().toISOString();
     const content = JSON.stringify(data, null, 4);
     await fs.writeFile(PACKAGES_JSON_PATH, content, 'utf-8');
     logger.success(`Updated packages.json`);
