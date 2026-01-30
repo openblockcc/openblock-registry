@@ -14,16 +14,14 @@
                         "checksum": "SHA-256:8EEED49AC72470E184C5EFC1B2BF694BF39034D4572C81E9209EE9E4B759773A",
                         "host": "darwin-arm64",
                         "archiveFileName": "arduino-arduino-avr-darwin-arm64-1.8.7.zip",
-                        "size": "67176691",
-                        "fallbackUsed": "darwin-x64"
+                        "size": "67176691"
                     },
                     {
                         "url": "https://registry.openblock.cc/toolchains/arduino-arduino-avr-darwin-x64-1.8.7.zip",
                         "checksum": "SHA-256:79E2032B6D22F8968A3FC2167FF5134172E5424F8651136BDF358B6FB14BCF97",
                         "host": "darwin-x64",
                         "archiveFileName": "arduino-arduino-avr-darwin-x64-1.8.7.zip",
-                        "size": "67176691",
-                        "fallbackUsed": null
+                        "size": "67176691"
                     },
                     {
                         "url": "https://registry.openblock.cc/toolchains/arduino-arduino-avr-linux-arm-1.8.7.zip",
@@ -44,23 +42,14 @@
                         "checksum": "SHA-256:E1EB06664B3C2D0E8E9C5BCCA98C534289F77198BAFDA7B7A5EF658D16BF7697",
                         "host": "linux-x64",
                         "archiveFileName": "arduino-arduino-avr-linux-x64-1.8.7.zip",
-                        "size": "67886850",
-                        "fallbackUsed": null
-                    },
-                    {
-                        "url": "https://registry.openblock.cc/toolchains/arduino-arduino-avr-win32-ia32-1.8.7.zip",
-                        "checksum": "SHA-256:C940F1140C8E0B5FD7E631D9F393FF0CE9A57EC372615B6373865C11B0158026",
-                        "host": "win32-ia32",
-                        "archiveFileName": "arduino-arduino-avr-win32-ia32-1.8.7.zip",
-                        "size": "65497772"
+                        "size": "67886850"
                     },
                     {
                         "url": "https://registry.openblock.cc/toolchains/arduino-arduino-avr-win32-x64-1.8.7.zip",
                         "checksum": "SHA-256:1DFC6A3EF50543778DE2C7D52D9C12DC9943B52A48B2FE357073AC981ED533C9",
                         "host": "win32-x64",
                         "archiveFileName": "arduino-arduino-avr-win32-x64-1.8.7.zip",
-                        "size": "65497772",
-                        "fallbackUsed": "win32-ia32"
+                        "size": "65497772"
                     }
                 ]
             },
@@ -73,8 +62,7 @@
                         "checksum": "SHA-256:F64E89BB23B0BFCB0274708D2C790231E3DEA092E69BAB042AF4523492003856",
                         "host": "darwin-arm64",
                         "archiveFileName": "arduino-arduino-renesas_uno-darwin-arm64-1.5.2.zip",
-                        "size": "161718980",
-                        "fallbackUsed": "darwin-x64"
+                        "size": "161718980"
                     },
                     {
                         "url": "https://registry.openblock.cc/toolchains/arduino-arduino-renesas_uno-darwin-x64-1.5.2.zip",
@@ -102,23 +90,14 @@
                         "checksum": "SHA-256:7A06806FC305A4C1D1D260BA1103339D7593653C097DBC52765D358D70CDBAAA",
                         "host": "linux-x64",
                         "archiveFileName": "arduino-arduino-renesas_uno-linux-x64-1.5.2.zip",
-                        "size": "159702123",
-                        "fallbackUsed": null
-                    },
-                    {
-                        "url": "https://registry.openblock.cc/toolchains/arduino-arduino-renesas_uno-win32-ia32-1.5.2.zip",
-                        "checksum": "SHA-256:30CFCFF2529C188221305DE163D797BFD318801BEB1F00937D8C53E1629746BA",
-                        "host": "win32-ia32",
-                        "archiveFileName": "arduino-arduino-renesas_uno-win32-ia32-1.5.2.zip",
-                        "size": "157324780"
+                        "size": "159702123"
                     },
                     {
                         "url": "https://registry.openblock.cc/toolchains/arduino-arduino-renesas_uno-win32-x64-1.5.2.zip",
                         "checksum": "SHA-256:F208E13021F3C7E0262CCA03C7765694E6784C3CF8AC17F73463EDD82A8EED69",
                         "host": "win32-x64",
                         "archiveFileName": "arduino-arduino-renesas_uno-win32-x64-1.5.2.zip",
-                        "size": "157324780",
-                        "fallbackUsed": "win32-ia32"
+                        "size": "157324780"
                     }
                 ]
             },
@@ -131,8 +110,7 @@
                         "checksum": "SHA-256:EC6E0FC2C743DC83CD5DFE2A34AEB54C1481F4B33CB6144EE00ED8A94025A6C4",
                         "host": "darwin-arm64",
                         "archiveFileName": "arduino-esp32-esp32-darwin-arm64-3.3.5.zip",
-                        "size": "1719680822",
-                        "fallbackUsed": "darwin-x64"
+                        "size": "1719680822"
                     },
                     {
                         "url": "https://registry.openblock.cc/toolchains/arduino-esp32-esp32-darwin-x64-3.3.5.zip",
@@ -160,23 +138,14 @@
                         "checksum": "SHA-256:8ADCA93210E2D183F1194670368752DCBE9FDE4ACF5E4EF7952F5C1F44AD94B9",
                         "host": "linux-x64",
                         "archiveFileName": "arduino-esp32-esp32-linux-x64-3.3.5.zip",
-                        "size": "1753869390",
-                        "fallbackUsed": null
-                    },
-                    {
-                        "url": "https://registry.openblock.cc/toolchains/arduino-esp32-esp32-win32-ia32-3.3.5.zip",
-                        "checksum": "SHA-256:7C44DA230E012A1284B28A3E3CA904E21A6C228E4FDE2FE793CFF12A3DEF25A4",
-                        "host": "win32-ia32",
-                        "archiveFileName": "arduino-esp32-esp32-win32-ia32-3.3.5.zip",
-                        "size": "1744445796"
+                        "size": "1753869390"
                     },
                     {
                         "url": "https://registry.openblock.cc/toolchains/arduino-esp32-esp32-win32-x64-3.3.5.zip",
                         "checksum": "SHA-256:D2653BB3C675C55EC4479ED776E3C7B370399DFB0A7E08CAD0327287DCD6BE33",
                         "host": "win32-x64",
                         "archiveFileName": "arduino-esp32-esp32-win32-x64-3.3.5.zip",
-                        "size": "1757189011",
-                        "fallbackUsed": "win32-ia32"
+                        "size": "1757189011"
                     }
                 ]
             },
@@ -189,8 +158,7 @@
                         "checksum": "SHA-256:262EF0DED00AFFFC16F5FA3F1652CA92152872FC2AC98D8E92A33AE66FE9B2D3",
                         "host": "darwin-arm64",
                         "archiveFileName": "arduino-esp8266-esp8266-darwin-arm64-3.1.2.zip",
-                        "size": "147569417",
-                        "fallbackUsed": "darwin-x64"
+                        "size": "147569417"
                     },
                     {
                         "url": "https://registry.openblock.cc/toolchains/arduino-esp8266-esp8266-darwin-x64-3.1.2.zip",
@@ -214,25 +182,11 @@
                         "size": "120708188"
                     },
                     {
-                        "url": "https://registry.openblock.cc/toolchains/arduino-esp8266-esp8266-linux-ia32-3.1.2.zip",
-                        "checksum": "SHA-256:DA8B517F7A4C304FE0650FE73438EAF13F910B1EA58ED45E44135A03F07595A5",
-                        "host": "linux-ia32",
-                        "archiveFileName": "arduino-esp8266-esp8266-linux-ia32-3.1.2.zip",
-                        "size": "124495622"
-                    },
-                    {
                         "url": "https://registry.openblock.cc/toolchains/arduino-esp8266-esp8266-linux-x64-3.1.2.zip",
                         "checksum": "SHA-256:5B15583A029BAADE14B9770A1BFD1F74336DF9B391A9EAEFBBD7D5CC7C640ED2",
                         "host": "linux-x64",
                         "archiveFileName": "arduino-esp8266-esp8266-linux-x64-3.1.2.zip",
                         "size": "124977316"
-                    },
-                    {
-                        "url": "https://registry.openblock.cc/toolchains/arduino-esp8266-esp8266-win32-ia32-3.1.2.zip",
-                        "checksum": "SHA-256:3F9208FDA7A2FD1B89936F5C00B0DA885D2FC1EF00E6A0835E9ED9FFF41CFA5F",
-                        "host": "win32-ia32",
-                        "archiveFileName": "arduino-esp8266-esp8266-win32-ia32-3.1.2.zip",
-                        "size": "118987605"
                     },
                     {
                         "url": "https://registry.openblock.cc/toolchains/arduino-esp8266-esp8266-win32-x64-3.1.2.zip",
@@ -310,25 +264,11 @@
                         "size": "426991890"
                     },
                     {
-                        "url": "https://registry.openblock.cc/toolchains/arduino-rp2040-rp2040-linux-ia32-5.5.0.zip",
-                        "checksum": "SHA-256:3F9BD0D70C441A8472C8BCA3B4D2D114EF640C6B11AACFBBF82E5AEF7C2E09D3",
-                        "host": "linux-ia32",
-                        "archiveFileName": "arduino-rp2040-rp2040-linux-ia32-5.5.0.zip",
-                        "size": "436307869"
-                    },
-                    {
                         "url": "https://registry.openblock.cc/toolchains/arduino-rp2040-rp2040-linux-x64-5.5.0.zip",
                         "checksum": "SHA-256:ADA680063DEBF56816C249ED22EE3837BA44FF95A053939A1B9680FCE8EEAD7E",
                         "host": "linux-x64",
                         "archiveFileName": "arduino-rp2040-rp2040-linux-x64-5.5.0.zip",
                         "size": "430017696"
-                    },
-                    {
-                        "url": "https://registry.openblock.cc/toolchains/arduino-rp2040-rp2040-win32-ia32-5.5.0.zip",
-                        "checksum": "SHA-256:91FA0F829D7359AB17051A602D2F98E1AD05C30A5DDB925824F902FB8B5545DC",
-                        "host": "win32-ia32",
-                        "archiveFileName": "arduino-rp2040-rp2040-win32-ia32-5.5.0.zip",
-                        "size": "415445280"
                     },
                     {
                         "url": "https://registry.openblock.cc/toolchains/arduino-rp2040-rp2040-win32-x64-5.5.0.zip",
@@ -372,24 +312,10 @@
                         "size": "1702116"
                     },
                     {
-                        "url": "https://registry.openblock.cc/toolchains/arduino-sparkFun-avr-linux-ia32-1.1.13.zip",
-                        "checksum": "SHA-256:B082CCDD0268BFA13DCB8C18A829FC242A4F698C1066282476EA532F67DFE207",
-                        "host": "linux-ia32",
-                        "archiveFileName": "arduino-sparkFun-avr-linux-ia32-1.1.13.zip",
-                        "size": "1702116"
-                    },
-                    {
                         "url": "https://registry.openblock.cc/toolchains/arduino-sparkFun-avr-linux-x64-1.1.13.zip",
                         "checksum": "SHA-256:C060A86A26FE52098B3C65BF8F16E55D559D8480D088CF2B7DEFF9742E9F3391",
                         "host": "linux-x64",
                         "archiveFileName": "arduino-sparkFun-avr-linux-x64-1.1.13.zip",
-                        "size": "1702116"
-                    },
-                    {
-                        "url": "https://registry.openblock.cc/toolchains/arduino-sparkFun-avr-win32-ia32-1.1.13.zip",
-                        "checksum": "SHA-256:FE74251D30D2BBEF4F39650F5A9F040CF796616F17CCDAA8AA440BFC3711853E",
-                        "host": "win32-ia32",
-                        "archiveFileName": "arduino-sparkFun-avr-win32-ia32-1.1.13.zip",
                         "size": "1702116"
                     },
                     {
