@@ -18,6 +18,12 @@
             "classes": true,
             "variables": true
         }],
+        
+        // NOTE:
+        // eslint@5 + babel-eslint can crash in the core `indent` rule when parsing
+        // modern JS constructs (e.g. TemplateLiteral nodes coming from Babel AST).
+        // We disable it here to prevent `npm run lint` from crashing.
+        "indent": "off",
         "max-len": ["error", {
             "code": 150,
             "ignoreUrls": true,

@@ -42,8 +42,9 @@ import {collectDownloadResources, parseCore} from './arduino/index-parser.js';
  */
 const packageArduinoToolchain = async (item, config) => {
     const {id, version, platform} = item;
-    const workDir = path.join(os.tmpdir(), `openblock-toolchain-${Date.now()}-${Math.random().toString(36)
-        .slice(2, 8)}`);
+    const randomSuffix = Math.random().toString(36)
+.slice(2, 8);
+    const workDir = path.join(os.tmpdir(), `openblock-toolchain-${Date.now()}-${randomSuffix}`);
 
     try {
         await fs.mkdir(workDir, {recursive: true});
@@ -123,7 +124,7 @@ const updatePackagesJsonFile = async (toAdd, addedSystems, toDelete = []) => {
         if (!systemInfo) continue;
 
         // Remove fallbackUsed property before saving to packages.json
-        const {fallbackUsed, ...systemInfoClean} = systemInfo;
+        const {fallbackUsed: _fallbackUsed, ...systemInfoClean} = systemInfo;
 
         let toolchain = findToolchain(toolchains, item.id, item.version);
         if (!toolchain) {

@@ -3,8 +3,84 @@
  * Fetches and parses Arduino board manager package_index.json files
  */
 
+import https from 'https';
+import http from 'http';
 import logger from '../../common/logger.js';
 import {toOpenBlockPlatform, getFallbackPlatform} from './platform-mapper.js';
+
+// Domains with known SSL certificate issues
+const INSECURE_DOMAINS = [
+    'dl.cdn.sipeed.com'
+];
+
+/**
+ * Check if a URL requires insecure connection (skip SSL verification)
+ * @param {string} url - URL to check
+ * @returns {boolean} True if SSL verification should be skipped
+ */
+const isInsecureDomain = (url) => {
+    try {
+        const urlObj = new URL(url);
+        return INSECURE_DOMAINS.some(domain => urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`));
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * Fetch JSON from URL using http/https modules (supports insecure connections)
+ * @param {string} url - URL to fetch
+ * @returns {Promise<object>} Parsed JSON response
+ */
+const fetchWithAgent = (url) => {
+    return new Promise((resolve, reject) => {
+        const urlObj = new URL(url);
+        const isHttps = urlObj.protocol === 'https:';
+        const client = isHttps ? https : http;
+
+        const options = {
+            hostname: urlObj.hostname,
+            port: urlObj.port || (isHttps ? 443 : 80),
+            path: urlObj.pathname + urlObj.search,
+            method: 'GET',
+            rejectUnauthorized: !isInsecureDomain(url)
+        };
+
+        if (isInsecureDomain(url)) {
+            logger.warn(`Using insecure connection for: ${urlObj.hostname}`);
+        }
+
+        const request = client.request(options, response => {
+            // Handle redirects
+            if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                const redirectUrl = new URL(response.headers.location, url).toString();
+                fetchWithAgent(redirectUrl).then(resolve)
+.catch(reject);
+                return;
+            }
+
+            if (response.statusCode !== 200) {
+                reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
+                return;
+            }
+
+            let data = '';
+            response.on('data', chunk => {
+                data += chunk;
+            });
+            response.on('end', () => {
+                try {
+                    resolve(JSON.parse(data));
+                } catch (err) {
+                    reject(new Error(`Failed to parse JSON: ${err.message}`));
+                }
+            });
+        });
+
+        request.on('error', reject);
+        request.end();
+    });
+};
 
 /**
  * Compare semantic versions
@@ -33,6 +109,11 @@ const compareVersions = (a, b) => {
 export const fetchPackageIndex = async (url) => {
     try {
         logger.debug(`Fetching package index: ${url}`);
+
+        if (isInsecureDomain(url)) {
+            return await fetchWithAgent(url);
+        }
+
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);

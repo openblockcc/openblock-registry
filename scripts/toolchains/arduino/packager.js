@@ -5,6 +5,8 @@
 
 import fs from 'fs/promises';
 import path from 'path';
+import https from 'https';
+import http from 'http';
 import {createWriteStream} from 'fs';
 import {pipeline} from 'stream/promises';
 import {createHash} from 'crypto';
@@ -16,6 +18,83 @@ import {fetchPackageIndex, collectDownloadResources, parseCore} from './index-pa
 
 const execAsync = promisify(exec);
 
+// Domains with known SSL certificate issues
+const INSECURE_DOMAINS = [
+    'dl.cdn.sipeed.com'
+];
+
+/**
+ * Check if a URL requires insecure connection (skip SSL verification)
+ * @param {string} url - URL to check
+ * @returns {boolean} True if SSL verification should be skipped
+ */
+const isInsecureDomain = (url) => {
+    try {
+        const urlObj = new URL(url);
+        return INSECURE_DOMAINS.some(domain => urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`));
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * Download a file from URL using http/https modules (supports insecure connections)
+ * @param {string} url - Download URL
+ * @param {string} destPath - Destination file path
+ * @returns {Promise<void>} Promise that resolves when download is complete
+ */
+const downloadWithAgent = (url, destPath) => {
+    return new Promise((resolve, reject) => {
+        const urlObj = new URL(url);
+        const isHttps = urlObj.protocol === 'https:';
+        const client = isHttps ? https : http;
+
+        const options = {
+            hostname: urlObj.hostname,
+            port: urlObj.port || (isHttps ? 443 : 80),
+            path: urlObj.pathname + urlObj.search,
+            method: 'GET',
+            rejectUnauthorized: !isInsecureDomain(url) // Skip SSL verification for known problematic domains
+        };
+
+        if (isInsecureDomain(url)) {
+            logger.warn(`Using insecure connection for: ${urlObj.hostname}`);
+        }
+
+        const request = client.request(options, response => {
+            // Handle redirects
+            if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                const redirectUrl = new URL(response.headers.location, url).toString();
+                logger.info(`Redirecting to: ${redirectUrl}`);
+                downloadWithAgent(redirectUrl, destPath).then(resolve)
+.catch(reject);
+                return;
+            }
+
+            if (response.statusCode !== 200) {
+                reject(new Error(`Failed to download: ${response.statusCode} ${response.statusMessage}`));
+                return;
+            }
+
+            const fileStream = createWriteStream(destPath);
+            response.pipe(fileStream);
+
+            fileStream.on('finish', () => {
+                fileStream.close();
+                resolve();
+            });
+
+            fileStream.on('error', err => {
+                fs.unlink(destPath).catch(() => {});
+                reject(err);
+            });
+        });
+
+        request.on('error', reject);
+        request.end();
+    });
+};
+
 /**
  * Download a file from URL
  * @param {string} url - Download URL
@@ -23,14 +102,21 @@ const execAsync = promisify(exec);
  */
 export const downloadFile = async (url, destPath) => {
     logger.info(`Downloading: ${url}`);
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Failed to download: ${response.status} ${response.statusText}`);
+    await fs.mkdir(path.dirname(destPath), {recursive: true});
+
+    if (isInsecureDomain(url)) {
+        // Use custom download for domains with SSL issues
+        await downloadWithAgent(url, destPath);
+    } else {
+        // Use native fetch for normal domains
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to download: ${response.status} ${response.statusText}`);
+        }
+        const fileStream = createWriteStream(destPath);
+        await pipeline(response.body, fileStream);
     }
 
-    await fs.mkdir(path.dirname(destPath), {recursive: true});
-    const fileStream = createWriteStream(destPath);
-    await pipeline(response.body, fileStream);
     logger.success(`Downloaded: ${path.basename(destPath)}`);
 };
 
