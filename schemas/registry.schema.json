@@ -1,0 +1,34 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://registry.openblock.cc/schemas/registry.schema.json",
+    "title": "OpenBlock Registry",
+    "description": "Schema for OpenBlock Registry registry.json - contains repository URLs for devices and extensions",
+    "type": "object",
+    "required": ["devices", "extensions"],
+    "properties": {
+        "devices": {
+            "type": "array",
+            "description": "List of device repository URLs",
+            "items": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https://github\\.com/[^/]+/[^/]+$",
+                "description": "GitHub repository URL for a device package"
+            },
+            "uniqueItems": true
+        },
+        "extensions": {
+            "type": "array",
+            "description": "List of extension repository URLs",
+            "items": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https://github\\.com/[^/]+/[^/]+$",
+                "description": "GitHub repository URL for an extension package"
+            },
+            "uniqueItems": true
+        }
+    },
+    "additionalProperties": false
+}
+

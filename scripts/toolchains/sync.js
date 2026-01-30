@@ -10,8 +10,7 @@ import {fileURLToPath} from 'url';
 import logger from '../common/logger.js';
 import r2Client from '../common/r2-client.js';
 import {
-    readLocalPackagesJson,
-    writePackagesJson,
+    fetchRemotePackagesJson,
     getToolchains,
     updateToolchains,
     findToolchain
@@ -97,13 +96,14 @@ const packageArduinoToolchain = async (item, config) => {
 
 /**
  * Update packages.json with new toolchains and remove deleted ones
- * Also uploads the updated packages.json to R2
+ * Fetches current state from R2, updates it, and uploads back to R2
  * @param {Array} toAdd - Items that were added
  * @param {Map<string, object>} addedSystems - Map of "id@version#platform" -> system info
  * @param {Array} toDelete - Items that were deleted
+ * @returns {Promise<object>} Updated packages.json
  */
 const updatePackagesJsonFile = async (toAdd, addedSystems, toDelete = []) => {
-    const packagesJson = await readLocalPackagesJson();
+    const packagesJson = await fetchRemotePackagesJson();
     let toolchains = getToolchains(packagesJson);
 
     // Remove deleted items first
@@ -145,11 +145,12 @@ const updatePackagesJsonFile = async (toAdd, addedSystems, toDelete = []) => {
     }
 
     const updated = updateToolchains(packagesJson, toolchains);
-    await writePackagesJson(updated);
 
-    // Upload packages.json to R2
-    const packagesJsonPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../packages.json');
-    await r2Client.uploadFile(packagesJsonPath, 'packages.json');
+    // Upload packages.json directly to R2
+    await r2Client.uploadJson(updated, 'packages.json');
+    logger.success('Updated packages.json in R2');
+
+    return updated;
 };
 
 /**
@@ -278,7 +279,10 @@ export const sync = async (options = {}) => {
 
     // Read configs
     const config = await readToolchainsConfig();
-    const packagesJson = await readLocalPackagesJson();
+
+    // Fetch current packages.json from R2
+    logger.info('Fetching current packages.json from R2...');
+    const packagesJson = await fetchRemotePackagesJson();
     const toolchains = getToolchains(packagesJson);
 
     // Fetch latest versions from Arduino package index
@@ -410,16 +414,14 @@ export const sync = async (options = {}) => {
         }
     }
 
-    // Update packages.json
+    // Update packages.json in R2
+    let updatedCurrentState = current;
     if (addedSystems.size > 0 || deletedItems.length > 0) {
-        logger.section('Updating packages.json');
-        await updatePackagesJsonFile(toAdd, addedSystems, toDelete);
+        logger.section('Updating packages.json in R2');
+        const updatedPackagesJson = await updatePackagesJsonFile(toAdd, addedSystems, toDelete);
+        const updatedToolchains = getToolchains(updatedPackagesJson);
+        updatedCurrentState = buildCurrentState(updatedToolchains);
     }
-
-    // Build updated current state for report (after changes)
-    const updatedPackagesJson = await readLocalPackagesJson();
-    const updatedToolchains = getToolchains(updatedPackagesJson);
-    const updatedCurrentState = buildCurrentState(updatedToolchains);
 
     // Generate report
     const report = generateSyncReport({

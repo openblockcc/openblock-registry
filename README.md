@@ -1,6 +1,6 @@
 # OpenBlock Registry
 
-OpenBlock 官方插件注册中心，管理所有官方和社区贡献的插件、设备、库和工具链。
+OpenBlock 官方插件注册中心，管理所有官方和社区贡献的设备、扩展和工具链。
 
 ## 概述
 
@@ -8,16 +8,72 @@ OpenBlock 官方插件注册中心，管理所有官方和社区贡献的插件�
 
 - **设备 (Devices)** - Arduino、ESP32 等开发板定义
 - **扩展 (Extensions)** - 传感器、执行器等功能扩展
-- **库 (Libraries)** - Arduino/MicroPython 共享库
 - **工具链 (Toolchains)** - 编译器和上传工具
 
 ## 资源获取
 
 所有资源托管在 Cloudflare R2，通过 CDN 分发：
 
-```
+```text
 https://registry.openblock.cc/packages.json
 ```
+
+## 仓库结构
+
+```text
+openblock-registry/
+├── README.md                    # 本文件
+├── CONTRIBUTING.md              # 贡献指南
+├── registry.json                # 设备和扩展仓库列表
+├── toolchains.json              # 工具链构建配置
+├── TOOLCHAINS.md                # 可用工具链状态表格
+├── schemas/
+│   └── registry.schema.json     # registry.json 的 JSON Schema
+└── scripts/
+    ├── generate-toolchains-md.js  # 生成 TOOLCHAINS.md 的脚本
+    └── toolchains/                # 工具链构建脚本
+```
+
+## 文件说明
+
+### registry.json
+
+存放设备和扩展的 GitHub 仓库地址列表：
+
+```json
+{
+    "devices": [
+        "https://github.com/openblockcc/device-arduino-uno"
+    ],
+    "extensions": [
+        "https://github.com/openblockcc/extension-servo"
+    ]
+}
+```
+
+### toolchains.json
+
+存放工具链的构建配置（Arduino Board Manager URLs 和 core 映射）：
+
+```json
+{
+    "arduino": {
+        "board_manager": {
+            "additional_urls": ["..."]
+        },
+        "packages": [
+            {
+                "id": "arduino-arduino-avr",
+                "core": "arduino:avr"
+            }
+        ]
+    }
+}
+```
+
+### TOOLCHAINS.md
+
+展示当前 R2 中可用的工具链状态，详见 [TOOLCHAINS.md](./TOOLCHAINS.md)。
 
 ## 发布你的插件
 
@@ -40,37 +96,23 @@ cd your-plugin-project
 npx @openblock/cli publish
 ```
 
-CLI 会自动验证并创建 Pull Request。
+CLI 会自动验证并创建 Pull Request，将你的仓库地址添加到 `registry.json`。
 
-## 仓库结构
+## Toolchain 收录流程
 
-```
-openblock-registry/
-├── README.md                 # 本文件
-├── CONTRIBUTING.md           # 贡献指南
-├── packages.json             # 官方包索引
-├── .github/
-│   └── workflows/
-│       ├── validate-pr.yml   # PR 验证工作流
-│       ├── upload-to-r2.yml  # R2 上传工作流
-│       └── sync-mirrors.yml  # 镜像同步工作流
-└── schemas/
-    └── package-entry.schema.json  # JSON Schema
-```
-
-## packages.json 结构
-
-```json
-{
-    "schemaVersion": "1.0.0",
-    "updatedAt": "2026-01-27T10:00:00Z",
-    "packages": {
-        "devices": [],
-        "extensions": [],
-        "libraries": [],
-        "toolchains": []
-    }
-}
+```plaintext
+1. 插件开发者需要某个 toolchain
+       │
+       ▼
+2. 检查 TOOLCHAINS.md 是否已有该 toolchain
+       │
+   ┌───┴───┐
+   │       │
+   ▼       ▼
+ 已有    没有
+   │       │
+   ▼       ▼
+直接使用  修改 toolchains.json 提交 PR
 ```
 
 ## 相关链接
@@ -82,4 +124,3 @@ openblock-registry/
 ## 许可证
 
 MIT License
-

@@ -6,6 +6,7 @@
   "scripts": {
     "sync:toolchains": "node toolchains/sync.js",
     "diff:toolchains": "node toolchains/calculate-diff.js",
+    "generate:toolchains-md": "node generate-toolchains-md.js",
     "lint": "eslint . --ext .js --fix"
   },
   "dependencies": {

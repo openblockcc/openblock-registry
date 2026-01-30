@@ -129,8 +129,34 @@ export const getPublicUrl = (remotePath) => {
     return `${R2_PUBLIC_URL}/${remotePath}`;
 };
 
+/**
+ * Upload JSON data directly to R2
+ * @param {object} data - JSON data to upload
+ * @param {string} remotePath - Remote path in R2 bucket
+ * @returns {Promise<{url: string}>} Upload result
+ */
+export const uploadJson = async (data, remotePath) => {
+    const client = getClient();
+    const content = JSON.stringify(data, null, 4);
+
+    const command = new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: remotePath,
+        Body: content,
+        ContentType: 'application/json'
+    });
+
+    await client.send(command);
+    const url = `${R2_PUBLIC_URL}/${remotePath}`;
+
+    logger.success(`Uploaded: ${remotePath} (${formatSize(content.length)})`);
+
+    return {url};
+};
+
 export default {
     uploadFile,
+    uploadJson,
     deleteFile,
     fileExists,
     getPublicUrl
