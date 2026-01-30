@@ -144,7 +144,7 @@ const updatePackagesJsonFile = async (toAdd, addedSystems, toDelete = []) => {
     await writePackagesJson(updated);
 
     // Upload packages.json to R2
-    const packagesJsonPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../packages.json');
+    const packagesJsonPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../packages.json');
     await r2Client.uploadFile(packagesJsonPath, 'packages.json');
 };
 
