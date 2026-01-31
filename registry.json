@@ -1,5 +1,6 @@
 {
-    "devices": [],
+    "devices": [
+        "https://github.com/openblock-plugin/arduinoUnoR4Minima"
+    ],
     "extensions": []
 }
-
