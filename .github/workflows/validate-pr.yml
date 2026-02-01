@@ -34,17 +34,6 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Debug - Check directory structure
-        run: |
-          echo "Current directory:"
-          pwd
-          echo "Directory contents:"
-          ls -la
-          echo "Scripts directory:"
-          ls -la scripts/ || echo "scripts directory not found"
-          echo "Validate directory:"
-          ls -la scripts/validate/ || echo "scripts/validate directory not found"
-
       - name: Install dependencies
         working-directory: scripts
         run: npm install
