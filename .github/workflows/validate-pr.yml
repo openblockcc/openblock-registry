@@ -12,7 +12,9 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
+      issues: write
     steps:
       - name: Checkout PR
         uses: actions/checkout@v4

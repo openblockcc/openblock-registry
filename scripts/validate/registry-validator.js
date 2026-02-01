@@ -139,8 +139,17 @@ const verifyOpenBlockType = (packageJson, expectedType) => {
         return {valid: false, error: 'Missing openblock.type field'};
     }
 
-    if (actualType !== expectedType) {
-        return {valid: false, error: `Type mismatch: expected '${expectedType}', got '${actualType}'`};
+    // For device type, openblock.type should be arduino|microPython|microbit
+    // For extension type, openblock.type should be 'extension'
+    if (expectedType === 'device') {
+        const validDeviceTypes = ['arduino', 'microPython', 'microbit'];
+        if (!validDeviceTypes.includes(actualType)) {
+            return {valid: false, error: `Invalid device type: '${actualType}'. Must be one of: ${validDeviceTypes.join(', ')}`};
+        }
+    } else if (expectedType === 'extension') {
+        if (actualType !== 'extension') {
+            return {valid: false, error: `Type mismatch: expected 'extension', got '${actualType}'`};
+        }
     }
 
     return {valid: true};
