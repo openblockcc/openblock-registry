@@ -3,7 +3,8 @@
  * Validates toolchains.json structure and new toolchain entries
  */
 
-import {mergePackageIndexes, parseCore} from '../toolchains/arduino/index-parser.js';
+import {parseCore} from '../toolchains/arduino/index-parser.js';
+import {mergePackageIndexes} from '../toolchains/arduino/packager.js';
 
 /**
  * Find new toolchain entries by comparing PR and base
