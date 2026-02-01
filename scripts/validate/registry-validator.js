@@ -333,13 +333,13 @@ const validateTranslations = async (packageJson, type, repoInfo, branch) => {
         return {valid: false, error: `Missing ${type}Id in package.json`};
     }
 
-    // Expected namespace prefix
-    const namespacePrefix = `${type}.${pluginId}.`;
+    // Expected namespace prefix (only pluginId, no type prefix)
+    const namespacePrefix = `${pluginId}.`;
 
     // Check name consistency (only if using formatMessage structure)
     if (typeof openblock.name === 'object' && openblock.name.formatMessage) {
         const nameId = openblock.name.formatMessage.id;
-        const expectedNameId = `${type}.${pluginId}.name`;
+        const expectedNameId = `${pluginId}.name`;
 
         // Check if name ID matches expected format
         if (nameId !== expectedNameId) {
@@ -360,7 +360,7 @@ const validateTranslations = async (packageJson, type, repoInfo, branch) => {
     // Check description consistency (only if using formatMessage structure)
     if (typeof openblock.description === 'object' && openblock.description.formatMessage) {
         const descId = openblock.description.formatMessage.id;
-        const expectedDescId = `${type}.${pluginId}.description`;
+        const expectedDescId = `${pluginId}.description`;
 
         // Check if description ID matches expected format
         if (descId !== expectedDescId) {
@@ -379,19 +379,31 @@ const validateTranslations = async (packageJson, type, repoInfo, branch) => {
     // If description is a string, no validation needed (direct string is allowed)
 
     // Check namespace for all translation keys
-    const allSections = ['interface', 'extensions', 'blocks'];
-    for (const section of allSections) {
+    // interface and extensions: {pluginId}.* (e.g., arduinoUnoR4Minima.description)
+    // blocks: UPPERCASE_UNDERSCORE format (no pluginId prefix required)
+    for (const section of ['interface', 'extensions']) {
         if (!translations[section]) continue;
 
         for (const [lang, keys] of Object.entries(translations[section])) {
             if (!keys || typeof keys !== 'object') continue;
 
             for (const key of Object.keys(keys)) {
-                // All sections should use type.id.x format
-                // device: device.{deviceId}.x
-                // extension: extension.{extensionId}.x
                 if (!key.startsWith(namespacePrefix)) {
                     errors.push(`Invalid namespace in ${section}.${lang}: '${key}' should start with '${namespacePrefix}'`);
+                }
+            }
+        }
+    }
+
+    // Validate blocks section: should use UPPERCASE_UNDERSCORE format
+    if (translations.blocks) {
+        for (const [lang, keys] of Object.entries(translations.blocks)) {
+            if (!keys || typeof keys !== 'object') continue;
+
+            for (const key of Object.keys(keys)) {
+                // Blocks should be UPPERCASE with underscores
+                if (!/^[A-Z][A-Z0-9_]*$/.test(key)) {
+                    errors.push(`Invalid block key format in blocks.${lang}: '${key}' should use UPPERCASE_UNDERSCORE format`);
                 }
             }
         }
