@@ -1,7 +1,8 @@
 name: Validate PR
 
 on:
-  pull_request:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
     paths:
       - 'registry.json'
       - 'toolchains.json'
@@ -18,6 +19,8 @@ jobs:
     steps:
       - name: Checkout PR
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Checkout base branch for comparison
         uses: actions/checkout@v4
