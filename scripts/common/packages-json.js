@@ -104,6 +104,122 @@ export const findToolchain = (toolchains, id, version) => {
     return toolchains.find(t => t.id === id && t.version === version);
 };
 
+/**
+ * Get devices from packages.json
+ * @param {object} packagesJson - Packages JSON data
+ * @returns {Array} Devices array
+ */
+export const getDevices = (packagesJson) => {
+    return packagesJson?.packages?.devices ?? [];
+};
+
+/**
+ * Get extensions from packages.json
+ * @param {object} packagesJson - Packages JSON data
+ * @returns {Array} Extensions array
+ */
+export const getExtensions = (packagesJson) => {
+    return packagesJson?.packages?.extensions ?? [];
+};
+
+/**
+ * Find a package (device or extension) by ID
+ * @param {Array} packages - Packages array (devices or extensions)
+ * @param {string} id - Package ID (deviceId or extensionId)
+ * @returns {Array} Array of all versions for this package
+ */
+export const findPackageVersions = (packages, id) => {
+    return packages.filter(pkg => {
+        return pkg.deviceId === id || pkg.extensionId === id;
+    });
+};
+
+/**
+ * Find a specific version of a package
+ * @param {Array} packages - Packages array (devices or extensions)
+ * @param {string} id - Package ID (deviceId or extensionId)
+ * @param {string} version - Version number
+ * @returns {object|undefined} Package entry or undefined
+ */
+export const findPackageVersion = (packages, id, version) => {
+    return packages.find(pkg => {
+        const pkgId = pkg.deviceId || pkg.extensionId;
+        return pkgId === id && pkg.version === version;
+    });
+};
+
+/**
+ * Add or update a package version in packages.json
+ * @param {object} packagesJson - Packages JSON data
+ * @param {string} type - Package type ('devices' or 'extensions')
+ * @param {object} packageData - Package data to add
+ * @returns {object} Updated packages JSON
+ */
+export const addPackageVersion = (packagesJson, type, packageData) => {
+    const packages = [...(packagesJson?.packages?.[type] ?? [])];
+
+    // Add the new version
+    packages.push(packageData);
+
+    // Sort packages: by ID (ascending), then by version (descending)
+    packages.sort((a, b) => {
+        const aId = a.deviceId || a.extensionId;
+        const bId = b.deviceId || b.extensionId;
+
+        if (aId !== bId) {
+            return aId.localeCompare(bId);
+        }
+
+        // Compare versions (descending)
+        const [aMajor, aMinor, aPatch] = a.version.split('.').map(Number);
+        const [bMajor, bMinor, bPatch] = b.version.split('.').map(Number);
+
+        if (bMajor !== aMajor) return bMajor - aMajor;
+        if (bMinor !== aMinor) return bMinor - aMinor;
+        return bPatch - aPatch;
+    });
+
+    return {
+        ...packagesJson,
+        packages: {
+            ...packagesJson.packages,
+            [type]: packages
+        }
+    };
+};
+
+/**
+ * Update devices in packages.json
+ * @param {object} packagesJson - Packages JSON data
+ * @param {Array} devices - New devices array
+ * @returns {object} Updated packages JSON
+ */
+export const updateDevices = (packagesJson, devices) => {
+    return {
+        ...packagesJson,
+        packages: {
+            ...packagesJson.packages,
+            devices
+        }
+    };
+};
+
+/**
+ * Update extensions in packages.json
+ * @param {object} packagesJson - Packages JSON data
+ * @param {Array} extensions - New extensions array
+ * @returns {object} Updated packages JSON
+ */
+export const updateExtensions = (packagesJson, extensions) => {
+    return {
+        ...packagesJson,
+        packages: {
+            ...packagesJson.packages,
+            extensions
+        }
+    };
+};
+
 export default {
     readLocalPackagesJson,
     fetchRemotePackagesJson,
@@ -111,5 +227,12 @@ export default {
     createEmptyPackagesJson,
     getToolchains,
     updateToolchains,
-    findToolchain
+    findToolchain,
+    getDevices,
+    getExtensions,
+    findPackageVersions,
+    findPackageVersion,
+    addPackageVersion,
+    updateDevices,
+    updateExtensions
 };

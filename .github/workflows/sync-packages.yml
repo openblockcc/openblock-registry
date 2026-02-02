@@ -1,0 +1,116 @@
+name: Sync Packages
+
+on:
+  # Trigger on registry.json changes
+  push:
+    branches:
+      - main
+    paths:
+      - 'registry.json'
+  
+  # Daily sync at UTC 00:00
+  schedule:
+    - cron: '0 0 * * *'
+  
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run mode (preview changes without making them)'
+        required: false
+        type: boolean
+        default: false
+      concurrency:
+        description: 'Concurrency limit (number of parallel operations)'
+        required: false
+        type: number
+        default: 3
+      skip_transifex:
+        description: 'Skip Transifex push'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  sync:
+    name: Sync Packages to R2
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      issues: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            scripts/package-lock.json
+            ../openblock-registry-cli/package-lock.json
+      
+      - name: Install dependencies
+        run: |
+          cd scripts
+          npm ci
+          cd ../../openblock-registry-cli
+          npm ci
+      
+      - name: Run sync (Dry Run)
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+          TX_TOKEN: ${{ secrets.TX_TOKEN }}
+        run: |
+          cd scripts
+          node packages/sync.js --dry-run --concurrency=${{ inputs.concurrency || 3 }} ${{ inputs.skip_transifex && '--skip-transifex' || '' }}
+      
+      - name: Run sync (Production)
+        if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+          TX_TOKEN: ${{ secrets.TX_TOKEN }}
+        run: |
+          cd scripts
+          CONCURRENCY=${{ github.event_name == 'workflow_dispatch' && inputs.concurrency || 3 }}
+          node packages/sync.js --concurrency=$CONCURRENCY ${{ inputs.skip_transifex && '--skip-transifex' || '' }}
+      
+      - name: Generate Step Summary
+        if: always()
+        run: |
+          echo "## 📦 Package Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" == "true" ]; then
+            echo "**Mode:** 🔍 Dry Run (Preview Only)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Mode:** 🚀 Production" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Concurrency:** ${{ github.event_name == 'workflow_dispatch' && inputs.concurrency || 3 }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Skip Transifex:** ${{ github.event_name == 'workflow_dispatch' && inputs.skip_transifex || false }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See job logs for detailed sync report." >> $GITHUB_STEP_SUMMARY
+
