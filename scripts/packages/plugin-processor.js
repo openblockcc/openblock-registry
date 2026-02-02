@@ -26,7 +26,7 @@ const checkCliAvailable = async () => {
  * Run a command in a directory
  * @param {string} command - Command to run
  * @param {string} cwd - Working directory
- * @returns {Promise<{success: boolean, stdout?: string, stderr?: string, error?: string}>}
+ * @returns {Promise<object>} Command execution result with success, stdout, stderr, and error properties
  */
 const runCommand = async (command, cwd) => {
     try {
@@ -50,7 +50,7 @@ const runCommand = async (command, cwd) => {
  * Validate plugin using openblock-registry-cli
  * @param {string} pluginDir - Plugin directory path
  * @param {string} type - Plugin type (devices/extensions)
- * @returns {Promise<{valid: boolean, errors: string[]}>}
+ * @returns {Promise<object>} Validation result with valid and errors properties
  */
 export const validatePlugin = async (pluginDir, type) => {
     logger.debug(`Validating plugin in ${pluginDir}...`);
@@ -110,7 +110,7 @@ export const validatePlugin = async (pluginDir, type) => {
 /**
  * Build plugin using openblock-registry-cli
  * @param {string} pluginDir - Plugin directory path
- * @returns {Promise<{success: boolean, distPath?: string, error?: string}>}
+ * @returns {Promise<object>} Build result with success, distPath, and error properties
  */
 export const buildPlugin = async (pluginDir) => {
     logger.debug(`Building plugin in ${pluginDir}...`);
@@ -169,7 +169,7 @@ export const buildPlugin = async (pluginDir) => {
 /**
  * Extract translations using openblock-registry-cli
  * @param {string} pluginDir - Plugin directory path
- * @returns {Promise<{success: boolean, translationsPath?: string, error?: string}>}
+ * @returns {Promise<object>} Extraction result with success, translationsPath, and error properties
  */
 export const extractTranslations = async (pluginDir) => {
     logger.debug(`Extracting translations from ${pluginDir}...`);
@@ -221,7 +221,7 @@ export const extractTranslations = async (pluginDir) => {
  * @param {string} options.tag - Tag name
  * @param {string} options.type - Plugin type (devices/extensions)
  * @param {string} options.tempDir - Temporary directory for extraction
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ * @returns {Promise<object>} Processing result with success, data, and error properties
  */
 export const processVersion = async (options) => {
     const {owner, repo, tag, type, tempDir} = options;
@@ -295,4 +295,3 @@ export default {
     processVersion,
     checkCliAvailable
 };
-

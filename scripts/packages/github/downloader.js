@@ -15,7 +15,7 @@ import logger from '../../common/logger.js';
  * Download a file from URL
  * @param {string} url - Download URL
  * @param {string} destPath - Destination file path
- * @returns {Promise<void>}
+ * @returns {Promise<void>} Promise that resolves when download is complete
  */
 const downloadFile = async (url, destPath) => {
     const response = await fetch(url);
@@ -125,8 +125,10 @@ export const downloadAndExtractTag = async (owner, repo, tag, tempDir) => {
         try {
             await fs.unlink(zipPath).catch(() => {});
             await fs.rm(extractDir, {recursive: true, force: true}).catch(() => {});
-        } catch {}
-        
+        } catch {
+            // Ignore cleanup errors
+        }
+
         throw new Error(`Failed to download/extract ${owner}/${repo}@${tag}: ${err.message}`);
     }
 };
@@ -180,4 +182,3 @@ export default {
     calculateChecksum,
     getFileSize
 };
-

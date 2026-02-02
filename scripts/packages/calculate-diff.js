@@ -39,7 +39,7 @@ export const readRegistryJson = async () => {
  * @returns {{owner: string, repo: string}} Owner and repo name
  */
 export const parseRepoUrl = (url) => {
-    const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
         throw new Error(`Invalid GitHub URL: ${url}`);
     }
@@ -184,4 +184,3 @@ export default {
     getPackageVersions,
     buildSyncSummary
 };
-

@@ -22,7 +22,7 @@ const githubRequest = async (url, options = {}) => {
     };
 
     if (GITHUB_TOKEN) {
-        headers['Authorization'] = `token ${GITHUB_TOKEN}`;
+        headers.Authorization = `token ${GITHUB_TOKEN}`;
     }
 
     const response = await fetch(url, {
@@ -32,7 +32,7 @@ const githubRequest = async (url, options = {}) => {
 
     // Handle rate limiting
     if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0') {
-        const resetTime = parseInt(response.headers.get('x-ratelimit-reset')) * 1000;
+        const resetTime = parseInt(response.headers.get('x-ratelimit-reset'), 10) * 1000;
         const waitTime = resetTime - Date.now();
         
         if (waitTime > 0) {
@@ -56,7 +56,7 @@ const githubRequest = async (url, options = {}) => {
  * @returns {{owner: string, repo: string}} Owner and repo name
  */
 export const parseRepoUrl = (url) => {
-    const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
         throw new Error(`Invalid GitHub URL: ${url}`);
     }
@@ -77,6 +77,7 @@ export const fetchTags = async (owner, repo) => {
     let page = 1;
     const perPage = 100;
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
         const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/tags?per_page=${perPage}&page=${page}`;
         const data = await githubRequest(url);
@@ -162,4 +163,3 @@ export default {
     fetchPackageJson,
     createIssue
 };
-

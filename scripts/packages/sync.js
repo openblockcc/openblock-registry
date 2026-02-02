@@ -12,14 +12,12 @@ import fs from 'fs/promises';
 import logger from '../common/logger.js';
 import {readRegistryJson, parseRepoUrl, isValidSemver, calculateDiff, getPackageVersions} from './calculate-diff.js';
 import {fetchTags, fetchPackageJson, createIssue} from './github/api.js';
-import {createZipArchive, calculateChecksum, getFileSize} from './github/downloader.js';
+import {createZipArchive} from './github/downloader.js';
 import {processVersion} from './plugin-processor.js';
 import {initTranslationsDir, mergeTranslations, pushToTransifex} from './translation-merger.js';
 import {uploadFile, uploadJson} from '../common/r2-client.js';
 import {
-    readLocalPackagesJson,
     fetchRemotePackagesJson,
-    writePackagesJson,
     getDevices,
     getExtensions,
     addPackageVersion
@@ -128,7 +126,7 @@ const buildPackageEntry = (packageJson, type, version, repoUrl, fileInfo) => {
  * @param {object} currentPackages - Current packages.json
  * @param {string} tempDir - Temporary directory
  * @param {object} options - Processing options
- * @returns {Promise<{added: Array, skipped: Array, errors: Array, currentPackages: object}>}
+ * @returns {Promise<object>} Processing result with added, skipped, errors, and currentPackages properties
  */
 const processRepository = async (type, repoUrl, currentPackages, tempDir, options) => {
     const {owner, repo} = parseRepoUrl(repoUrl);
@@ -154,8 +152,8 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
         // We need to fetch package.json from the first tag to get the ID
         const firstTag = validTags[0].name;
         const firstPackageJson = await fetchPackageJson(owner, repo, firstTag);
-        const id = type === 'devices' ? 
-            firstPackageJson.openblock?.deviceId : 
+        const id = type === 'devices' ?
+            firstPackageJson.openblock?.deviceId :
             firstPackageJson.openblock?.extensionId;
 
         if (!id) {
@@ -393,7 +391,6 @@ https://github.com/openblockcc/openblock-registry/issues
 export const sync = async (options = {}) => {
     const {
         dryRun = false,
-        concurrency = DEFAULT_CONCURRENCY,
         skipTransifex = false
     } = options;
 
@@ -514,7 +511,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     // Parse concurrency
     const concurrencyArg = args.find(arg => arg.startsWith('--concurrency='));
     if (concurrencyArg) {
-        options.concurrency = parseInt(concurrencyArg.split('=')[1]) || DEFAULT_CONCURRENCY;
+        options.concurrency = parseInt(concurrencyArg.split('=')[1], 10) || DEFAULT_CONCURRENCY;
     }
 
     sync(options).catch(err => {
@@ -530,4 +527,3 @@ export default {
     processRepository,
     generateReport
 };
-

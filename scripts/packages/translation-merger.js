@@ -14,7 +14,7 @@ const TRANSLATION_CATEGORIES = ['interface', 'extensions', 'blocks'];
  * Initialize global translations directory
  * Creates the directory structure and empty JSON files if they don't exist
  * @param {string} targetDir - Target global translations directory
- * @returns {Promise<void>}
+ * @returns {Promise<void>} Promise that resolves when initialization is complete
  */
 export const initTranslationsDir = async (targetDir) => {
     logger.debug(`Initializing translations directory: ${targetDir}`);
@@ -75,7 +75,7 @@ const sortObjectKeys = (obj) => {
  * Merge translations from source directory to target directory
  * @param {string} sourceDir - Source translations directory (.translations/)
  * @param {string} targetDir - Target global translations directory
- * @returns {Promise<{merged: number, skipped: number, categories: object}>}
+ * @returns {Promise<object>} Merge statistics with merged, skipped, and categories properties
  */
 export const mergeTranslations = async (sourceDir, targetDir) => {
     logger.debug(`Merging translations from ${sourceDir} to ${targetDir}`);
@@ -134,7 +134,7 @@ export const mergeTranslations = async (sourceDir, targetDir) => {
 /**
  * Push translations to Transifex
  * @param {string} translationsDir - Translations directory
- * @returns {Promise<{success: boolean, error?: string}>}
+ * @returns {Promise<object>} Push result with success and error properties
  */
 export const pushToTransifex = async (translationsDir) => {
     logger.info('Pushing translations to Transifex...');
@@ -164,4 +164,3 @@ export default {
     mergeTranslations,
     pushToTransifex
 };
-

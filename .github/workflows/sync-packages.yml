@@ -53,8 +53,6 @@ jobs:
         run: |
           cd scripts
           npm ci
-          cd ../../openblock-registry-cli
-          npm ci
       
       - name: Run sync (Dry Run)
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
