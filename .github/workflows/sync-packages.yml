@@ -86,25 +86,31 @@ jobs:
       - name: Generate Step Summary
         if: always()
         run: |
-          echo "## 📦 Package Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Package Sync Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
           echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" == "true" ]; then
-            echo "**Mode:** 🔍 Dry Run (Preview Only)" >> $GITHUB_STEP_SUMMARY
+            echo "**Mode:** Dry Run (Preview Only)" >> $GITHUB_STEP_SUMMARY
           else
-            echo "**Mode:** 🚀 Production" >> $GITHUB_STEP_SUMMARY
+            echo "**Mode:** Production" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Concurrency:** ${{ github.event_name == 'workflow_dispatch' && inputs.concurrency || 3 }}" >> $GITHUB_STEP_SUMMARY
           echo "**Skip Transifex:** ${{ github.event_name == 'workflow_dispatch' && inputs.skip_transifex || false }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "See job logs for detailed sync report." >> $GITHUB_STEP_SUMMARY
+
+          # Append sync report if it exists
+          if [ -f "sync-report.md" ]; then
+            cat sync-report.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Sync report not found. Check job logs for details." >> $GITHUB_STEP_SUMMARY
+          fi
 

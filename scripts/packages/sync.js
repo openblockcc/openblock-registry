@@ -535,7 +535,12 @@ export const sync = async (options = {}) => {
                 logger.section('Pushing Translations to Transifex');
                 // Pass the repository root directory, not the .translations directory
                 const repoRoot = path.resolve(__dirname, '../..');
-                await pushToTransifex(repoRoot);
+                const pushResult = await pushToTransifex(repoRoot);
+
+                // If push fails, throw error to stop the workflow
+                if (!pushResult.success) {
+                    throw new Error(`Failed to push translations to Transifex: ${pushResult.error}`);
+                }
             }
 
             // Create issues for errors
@@ -561,6 +566,11 @@ export const sync = async (options = {}) => {
             repositoryStats
         });
         console.log(report);
+
+        // Write report to file for GitHub Actions Step Summary
+        const reportPath = path.resolve(__dirname, '../../sync-report.md');
+        await fs.writeFile(reportPath, report, 'utf-8');
+        logger.debug(`Report written to: ${reportPath}`);
 
         // Exit with error if there were failures
         if (allErrors.length > 0) {
