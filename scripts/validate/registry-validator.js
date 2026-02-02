@@ -133,22 +133,18 @@ const fetchAndValidatePackageJson = async (repoInfo, branch) => {
  * @returns {object} Validation result
  */
 const verifyOpenBlockType = (packageJson, expectedType) => {
-    const actualType = packageJson.openblock?.type;
-
-    if (!actualType) {
-        return {valid: false, error: 'Missing openblock.type field'};
-    }
-
-    // For device type, openblock.type should be arduino|microPython|microbit
-    // For extension type, openblock.type should be 'extension'
+    // Only device type requires openblock.type field
+    // Extension type does not have openblock.type
     if (expectedType === 'device') {
+        const actualType = packageJson.openblock?.type;
+
+        if (!actualType) {
+            return {valid: false, error: 'Missing openblock.type field'};
+        }
+
         const validDeviceTypes = ['arduino', 'microPython', 'microbit'];
         if (!validDeviceTypes.includes(actualType)) {
             return {valid: false, error: `Invalid device type: '${actualType}'. Must be one of: ${validDeviceTypes.join(', ')}`};
-        }
-    } else if (expectedType === 'extension') {
-        if (actualType !== 'extension') {
-            return {valid: false, error: `Type mismatch: expected 'extension', got '${actualType}'`};
         }
     }
 
