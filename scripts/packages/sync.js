@@ -173,14 +173,25 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
         logger.info(`${owner}/${repo}: ${toAdd.length} to add, ${toSkip.length} to skip`);
 
         // Skip versions
-        skipped.push(...toSkip.map(v => ({repo: `${owner}/${repo}`, version: v})));
+        skipped.push(...toSkip.map(v => ({
+            type,
+            id,
+            repo: `${owner}/${repo}`,
+            version: v
+        })));
 
         // Process versions to add
         for (const version of toAdd) {
             try {
                 if (options.dryRun) {
                     logger.info(`[DRY RUN] Would process ${owner}/${repo}@${version}`);
-                    added.push({repo: `${owner}/${repo}`, version, dryRun: true});
+                    added.push({
+                        type,
+                        id,
+                        repo: `${owner}/${repo}`,
+                        version,
+                        dryRun: true
+                    });
                     continue;
                 }
 
@@ -197,6 +208,7 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
 
                 if (!processResult.success) {
                     errors.push({
+                        type,
                         repo: `${owner}/${repo}`,
                         version,
                         error: processResult.error
@@ -238,6 +250,8 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
                     currentPackages = addPackageVersion(currentPackages, type, packageEntry);
 
                     added.push({
+                        type,
+                        id,
                         repo: `${owner}/${repo}`,
                         version,
                         size: zipResult.size,
@@ -258,6 +272,7 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
             } catch (err) {
                 logger.error(`Failed to process ${owner}/${repo}@${version}: ${err.message}`);
                 errors.push({
+                    type,
                     repo: `${owner}/${repo}`,
                     version,
                     error: err.message
@@ -280,47 +295,61 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
  * @returns {string} Markdown report
  */
 const generateReport = (results) => {
-    const {added, skipped, errors, timestamp} = results;
+    const {added, skipped, errors, timestamp, repositoryStats} = results;
 
     let report = '## Package Sync Report\n\n';
     report += `> Generated at: ${timestamp}\n\n`;
 
     // Summary
     report += '### Summary\n\n';
-    report += '| ✅ Added | ⏭️ Skipped | ❌ Failed |\n';
-    report += '|:--------:|:----------:|:---------:|\n';
+    report += '| Added | Skipped | Failed |\n';
+    report += '|:-----:|:-------:|:------:|\n';
     report += `| ${added.length} | ${skipped.length} | ${errors.length} |\n\n`;
 
     // Added
     if (added.length > 0) {
-        report += '### ✅ Added\n\n';
-        report += '| Repository | Version | Size | URL |\n';
-        report += '|------------|---------|-----:|-----|\n';
+        report += '### Added\n\n';
+        report += '| Type | ID | Version | Size | Repository |\n';
+        report += '|------|-----|---------|-----:|------------|\n';
         added.forEach(item => {
-            const sizeKB = (item.size / 1024).toFixed(2);
-            report += `| ${item.repo} | ${item.version} | ${sizeKB} KB | ${item.url} |\n`;
+            const sizeKB = (item.size / 1024).toFixed(1);
+            const typeLabel = item.type === 'devices' ? 'device' : 'extension';
+            report += `| ${typeLabel} | ${item.id} | ${item.version} | ${sizeKB} KB | ${item.repo} |\n`;
         });
         report += '\n';
     }
 
     // Skipped
     if (skipped.length > 0) {
-        report += '### ⏭️ Skipped (Already Exists)\n\n';
-        report += '| Repository | Version |\n';
-        report += '|------------|----------|\n';
+        report += '### Skipped (Already Exists)\n\n';
+        report += '| Type | ID | Version |\n';
+        report += '|------|-----|---------|\n';
         skipped.forEach(item => {
-            report += `| ${item.repo} | ${item.version} |\n`;
+            const typeLabel = item.type === 'devices' ? 'device' : 'extension';
+            report += `| ${typeLabel} | ${item.id} | ${item.version} |\n`;
         });
         report += '\n';
     }
 
     // Errors
     if (errors.length > 0) {
-        report += '### ❌ Failed\n\n';
-        report += '| Repository | Version | Error |\n';
-        report += '|------------|---------|-------|\n';
+        report += '### Failed\n\n';
+        report += '| Type | Repository | Version | Error |\n';
+        report += '|------|------------|---------|-------|\n';
         errors.forEach(item => {
-            report += `| ${item.repo} | ${item.version} | ${item.error} |\n`;
+            const typeLabel = item.type === 'devices' ? 'device' : 'extension';
+            report += `| ${typeLabel} | ${item.repo} | ${item.version} | ${item.error} |\n`;
+        });
+        report += '\n';
+    }
+
+    // Repository Status
+    if (repositoryStats && repositoryStats.length > 0) {
+        report += '### Repository Status\n\n';
+        report += '| Repository | Tags Found | Added | Skipped | Failed |\n';
+        report += '|------------|:----------:|:-----:|:-------:|:------:|\n';
+        repositoryStats.forEach(stat => {
+            report += `| ${stat.repo} | ${stat.tagsFound} | ${stat.added} | ${stat.skipped} | ${stat.failed} |\n`;
         });
         report += '\n';
     }
@@ -404,6 +433,7 @@ export const sync = async (options = {}) => {
     const allAdded = [];
     const allSkipped = [];
     const allErrors = [];
+    const repositoryStats = [];
 
     try {
         // Create temp directory
@@ -436,6 +466,18 @@ export const sync = async (options = {}) => {
                 allSkipped.push(...result.skipped);
                 allErrors.push(...result.errors);
                 currentPackages = result.currentPackages || currentPackages;
+
+                // Collect repository stats
+                const {owner, repo} = parseRepoUrl(repoUrl);
+                const repoName = `${owner}/${repo}`;
+                const tagsFound = result.added.length + result.skipped.length + result.errors.length;
+                repositoryStats.push({
+                    repo: repoName,
+                    tagsFound,
+                    added: result.added.length,
+                    skipped: result.skipped.length,
+                    failed: result.errors.length
+                });
             }
 
             // Process extensions
@@ -446,6 +488,18 @@ export const sync = async (options = {}) => {
                 allSkipped.push(...result.skipped);
                 allErrors.push(...result.errors);
                 currentPackages = result.currentPackages || currentPackages;
+
+                // Collect repository stats
+                const {owner, repo} = parseRepoUrl(repoUrl);
+                const repoName = `${owner}/${repo}`;
+                const tagsFound = result.added.length + result.skipped.length + result.errors.length;
+                repositoryStats.push({
+                    repo: repoName,
+                    tagsFound,
+                    added: result.added.length,
+                    skipped: result.skipped.length,
+                    failed: result.errors.length
+                });
             }
 
             // Upload updated packages.json
@@ -480,7 +534,8 @@ export const sync = async (options = {}) => {
             added: allAdded,
             skipped: allSkipped,
             errors: allErrors,
-            timestamp
+            timestamp,
+            repositoryStats
         });
         console.log(report);
 
