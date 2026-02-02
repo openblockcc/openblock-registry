@@ -1,6 +1,7 @@
 {
     "devices": [
-        "https://github.com/openblock-plugin/arduinoUnoR4Minima"
+        "https://github.com/openblock-plugin/arduinoUnoR4Minima",
+        "https://github.com/openblock-plugin/arduinoUnoR4Wifi"
     ],
     "extensions": []
 }
