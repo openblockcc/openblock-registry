@@ -2,5 +2,7 @@
     "devices": [
         "https://github.com/openblock-plugin/arduinoUnoR4Minima"
     ],
-    "extensions": []
+    "extensions": [
+        "https://github.com/openblock-plugin/softwareSerialport"
+    ]
 }
