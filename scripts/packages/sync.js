@@ -59,62 +59,83 @@ const runWithConcurrency = async (items, handler, concurrency) => {
 };
 
 /**
- * Build package entry from package.json and metadata
- * @param {object} packageJson - package.json content
- * @param {string} type - Package type (devices/extensions)
- * @param {string} version - Version number
+ * Build package entry for packages.json
+ * Uses the compiled dist/package.json which contains base64 iconURL and processed fields
+ * @param {object} distPackageJson - Compiled package.json from dist directory
+ * @param {string} type - Package type ('devices' or 'extensions')
+ * @param {string} version - Version string
  * @param {string} repoUrl - Repository URL
  * @param {object} fileInfo - File information (url, checksum, size)
  * @returns {object} Package entry for packages.json
  */
-const buildPackageEntry = (packageJson, type, version, repoUrl, fileInfo) => {
-    const openblock = packageJson.openblock || {};
-    const id = type === 'devices' ? openblock.deviceId : openblock.extensionId;
+const buildPackageEntry = (distPackageJson, type, version, repoUrl, fileInfo) => {
+    const openblock = distPackageJson.openblock || {};
     const idField = type === 'devices' ? 'deviceId' : 'extensionId';
+    const id = openblock[idField];
 
-    // Base entry
+    // Start with the id and version
     const entry = {
         [idField]: id,
-        version,
-        name: openblock.name,
-        description: openblock.description,
-        iconURL: openblock.iconURL,
-        author: packageJson.author,
-        repository: repoUrl,
-        helpLink: openblock.helpLink,
-        tags: openblock.tags || []
+        version
     };
 
-    // Add device-specific fields
-    if (type === 'devices') {
-        Object.assign(entry, {
-            manufactor: openblock.manufactor,
-            learnMore: openblock.learnMore,
-            type: openblock.type,
-            programMode: openblock.programMode,
-            programLanguage: openblock.programLanguage,
-            extensions: openblock.extensions,
-            extensionsCompatible: openblock.extensionsCompatible,
-            bluetoothRequired: openblock.bluetoothRequired ?? false,
-            serialportRequired: openblock.serialportRequired ?? false,
-            internetConnectionRequired: openblock.internetConnectionRequired ?? false
-        });
+    // Copy all openblock fields directly from dist/package.json
+    // This includes base64 iconURL, i18n formatted name/description, etc.
+    const openblockFields = [
+        'name',
+        'description',
+        'iconURL',
+        'helpLink',
+        'tags'
+    ];
+
+    // Device-specific fields
+    const deviceFields = [
+        'manufactor',
+        'learnMore',
+        'type',
+        'programMode',
+        'programLanguage',
+        'extensions',
+        'extensionsCompatible',
+        'bluetoothRequired',
+        'serialportRequired',
+        'internetConnectionRequired'
+    ];
+
+    // Extension-specific fields
+    const extensionFields = [
+        'supportDevice'
+    ];
+
+    // Copy common fields
+    for (const field of openblockFields) {
+        if (Object.prototype.hasOwnProperty.call(openblock, field)) {
+            entry[field] = openblock[field];
+        }
     }
 
-    // Add extension-specific fields
-    if (type === 'extensions') {
-        Object.assign(entry, {
-            supportDevice: openblock.supportDevice || []
-        });
+    // Copy type-specific fields
+    const typeFields = type === 'devices' ? deviceFields : extensionFields;
+    for (const field of typeFields) {
+        if (Object.prototype.hasOwnProperty.call(openblock, field)) {
+            entry[field] = openblock[field];
+        }
     }
+
+    // Add author from package.json root
+    if (distPackageJson.author) {
+        entry.author = distPackageJson.author;
+    }
+
+    // Add repository URL
+    entry.repository = repoUrl;
 
     // Add file information
-    Object.assign(entry, {
-        url: fileInfo.url,
-        archiveFileName: fileInfo.archiveFileName,
-        checksum: `SHA-256:${fileInfo.checksum}`,
-        size: fileInfo.size.toString()
-    });
+    entry.url = fileInfo.url;
+    entry.archiveFileName = fileInfo.archiveFileName;
+    entry.checksum = `SHA-256:${fileInfo.checksum}`;
+    entry.size = fileInfo.size.toString();
 
     return entry;
 };
@@ -216,12 +237,12 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
                     continue;
                 }
 
-                const {extractedPath, distPath, translationsPath, cleanup} = processResult.data;
+                const {distPath, translationsPath, cleanup} = processResult.data;
 
                 try {
-                    // Read package.json from extracted path
-                    const packageJsonPath = path.join(extractedPath, 'package.json');
-                    const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+                    // Read package.json from dist directory (contains base64 iconURL and processed fields)
+                    const distPackageJsonPath = path.join(distPath, 'package.json');
+                    const distPackageJson = JSON.parse(await fs.readFile(distPackageJsonPath, 'utf-8'));
 
                     // Create zip from dist directory
                     const archiveFileName = `${id}-${version}.zip`;
@@ -238,8 +259,8 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
                         await mergeTranslations(translationsPath, GLOBAL_TRANSLATIONS_DIR);
                     }
 
-                    // Build package entry
-                    const packageEntry = buildPackageEntry(packageJson, type, version, repoUrl, {
+                    // Build package entry using dist/package.json
+                    const packageEntry = buildPackageEntry(distPackageJson, type, version, repoUrl, {
                         url: uploadResult.url,
                         archiveFileName,
                         checksum: zipResult.checksum,
