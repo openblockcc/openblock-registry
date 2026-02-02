@@ -512,7 +512,9 @@ export const sync = async (options = {}) => {
             // Push translations to Transifex
             if (!dryRun && !skipTransifex && allAdded.length > 0) {
                 logger.section('Pushing Translations to Transifex');
-                await pushToTransifex(GLOBAL_TRANSLATIONS_DIR);
+                // Pass the repository root directory, not the .translations directory
+                const repoRoot = path.resolve(__dirname, '../..');
+                await pushToTransifex(repoRoot);
             }
 
             // Create issues for errors
