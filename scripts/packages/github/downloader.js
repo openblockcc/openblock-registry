@@ -8,7 +8,7 @@ import path from 'path';
 import {createWriteStream} from 'fs';
 import {pipeline} from 'stream/promises';
 import {createHash} from 'crypto';
-import {Extract} from 'unzipper';
+import extractZipLib from 'extract-zip';
 import logger from '../../common/logger.js';
 
 /**
@@ -60,12 +60,8 @@ export const getFileSize = async (filePath) => {
  */
 const extractZip = async (zipPath, destDir) => {
     await fs.mkdir(destDir, {recursive: true});
-    
-    const readStream = (await import('fs')).createReadStream(zipPath);
-    await pipeline(
-        readStream,
-        Extract({path: destDir})
-    );
+
+    await extractZipLib(zipPath, {dir: destDir});
 
     // GitHub zip files contain a single root directory named {repo}-{tag}
     // Return the path to this directory
@@ -76,7 +72,7 @@ const extractZip = async (zipPath, destDir) => {
 
     const extractedPath = path.join(destDir, entries[0]);
     const stats = await fs.stat(extractedPath);
-    
+
     if (!stats.isDirectory()) {
         throw new Error('Expected a directory in the zip file');
     }

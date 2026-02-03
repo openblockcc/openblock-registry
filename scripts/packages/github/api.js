@@ -7,6 +7,9 @@ import logger from '../../common/logger.js';
 
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+// Use PLUGIN_GITHUB_TOKEN for third-party repo operations (creating issues in plugin repos)
+// Falls back to GITHUB_TOKEN if not available
+const PLUGIN_GITHUB_TOKEN = process.env.PLUGIN_GITHUB_TOKEN || GITHUB_TOKEN;
 
 /**
  * Make a GitHub API request with rate limit handling
@@ -126,6 +129,7 @@ export const fetchPackageJson = async (owner, repo, tag) => {
 
 /**
  * Create an issue in a GitHub repository
+ * Uses PLUGIN_GITHUB_TOKEN for authentication to third-party repos
  * @param {string} owner - Repository owner
  * @param {string} repo - Repository name
  * @param {string} title - Issue title
@@ -135,16 +139,36 @@ export const fetchPackageJson = async (owner, repo, tag) => {
  */
 export const createIssue = async (owner, repo, title, body, labels = []) => {
     const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/issues`;
-    
+
+    // Use PLUGIN_GITHUB_TOKEN for creating issues in third-party repos
+    const headers = {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'OpenBlock-Registry',
+        'Content-Type': 'application/json'
+    };
+
+    if (PLUGIN_GITHUB_TOKEN) {
+        headers.Authorization = `token ${PLUGIN_GITHUB_TOKEN}`;
+    } else {
+        logger.warn('PLUGIN_GITHUB_TOKEN not set, issue creation may fail for third-party repos');
+    }
+
     try {
-        const data = await githubRequest(url, {
+        const response = await fetch(url, {
             method: 'POST',
+            headers,
             body: JSON.stringify({
                 title,
                 body,
                 labels
             })
         });
+
+        if (!response.ok) {
+            throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
 
         logger.success(`Created issue #${data.number} in ${owner}/${repo}`);
         return {
