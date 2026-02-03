@@ -152,35 +152,38 @@ const processPlugin = function (options) {
         
         // 3. Get current translations
         let currentTranslations = {};
+        let originalHeader = '';
         try {
             const currentContent = await fetchRawFile(owner, repo, 'HEAD', translationsPath);
-            currentTranslations = parseTranslationsJs(currentContent);
+            const parsed = parseTranslationsJs(currentContent);
+            currentTranslations = parsed.translations;
+            originalHeader = parsed.header;
         } catch (err) {
             logger.warn(`  Could not fetch current translations: ${err.message}`);
         }
-        
+
         // 4. Get Transifex translations for this plugin
         const incomingTranslations = pluginTranslations[pluginId];
         if (!incomingTranslations) {
             return {updated: false, reason: 'No translations in Transifex'};
         }
-        
+
         // 5. Compare differences
         const diff = compareTranslations(currentTranslations, incomingTranslations);
-        
+
         if (!diff.hasChanges) {
             return {updated: false, reason: 'No changes'};
         }
-        
+
         logger.info(`  Found ${diff.changes.total} changes (${diff.changes.added.length} added, ${diff.changes.updated.length} updated)`);
-        
+
         if (dryRun) {
             return {updated: true, dryRun: true, changes: diff.changes};
         }
 
         // 6. Merge translations and generate new file
         const mergedTranslations = mergeTranslations(currentTranslations, incomingTranslations);
-        const newContent = generateTranslationsJs(mergedTranslations);
+        const newContent = generateTranslationsJs(mergedTranslations, originalHeader);
 
         // 7. Create PR
         const pr = await createTranslationPR({

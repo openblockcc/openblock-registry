@@ -322,10 +322,13 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
  * @returns {string} Markdown report
  */
 const generateReport = (results) => {
-    const {added, skipped, errors, timestamp, repositoryStats} = results;
+    const {added, skipped, errors, repositoryStats, dryRun} = results;
 
     let report = '## Package Sync Report\n\n';
-    report += `> Generated at: ${timestamp}\n\n`;
+
+    if (dryRun) {
+        report += '> **Dry Run** - No changes were made\n\n';
+    }
 
     // Summary
     report += '### Summary\n\n';
@@ -449,7 +452,6 @@ export const sync = async (options = {}) => {
         logger.warn('DRY RUN MODE - No changes will be made');
     }
 
-    const timestamp = new Date().toISOString();
     const allAdded = [];
     const allSkipped = [];
     const allErrors = [];
@@ -565,20 +567,14 @@ export const sync = async (options = {}) => {
         }
 
         // Generate and display report
-        logger.section('Sync Report');
         const report = generateReport({
             added: allAdded,
             skipped: allSkipped,
             errors: allErrors,
-            timestamp,
-            repositoryStats
+            repositoryStats,
+            dryRun
         });
         console.log(report);
-
-        // Write report to file for GitHub Actions Step Summary
-        const reportPath = path.resolve(__dirname, '../../sync-report.md');
-        await fs.writeFile(reportPath, report, 'utf-8');
-        logger.debug(`Report written to: ${reportPath}`);
 
         // Log errors but don't fail the workflow for third-party plugin errors
         // Third-party plugins are untrusted and their errors should not break the registry workflow

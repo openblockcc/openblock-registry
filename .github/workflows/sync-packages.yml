@@ -61,6 +61,7 @@ jobs:
       
       - name: Run sync (Dry Run)
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+        working-directory: scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PLUGIN_GITHUB_TOKEN: ${{ secrets.PLUGIN_GITHUB_TOKEN }}
@@ -71,11 +72,21 @@ jobs:
           R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
           TX_TOKEN: ${{ secrets.TX_TOKEN }}
         run: |
-          cd scripts
-          node packages/sync.js --dry-run --concurrency=${{ inputs.concurrency || 3 }} ${{ inputs.skip_transifex && '--skip-transifex' || '' }}
+          node packages/sync.js --dry-run --concurrency=${{ inputs.concurrency || 3 }} ${{ inputs.skip_transifex && '--skip-transifex' || '' }} 2>&1 | tee sync-output.txt
+
+          # Extract markdown report (everything after "## Package Sync Report")
+          if grep -q "## Package Sync Report" sync-output.txt; then
+            sed -n '/## Package Sync Report/,$p' sync-output.txt >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Dry Run Results" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat sync-output.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Run sync (Production)
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
+        working-directory: scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PLUGIN_GITHUB_TOKEN: ${{ secrets.PLUGIN_GITHUB_TOKEN }}
@@ -86,38 +97,16 @@ jobs:
           R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
           TX_TOKEN: ${{ secrets.TX_TOKEN }}
         run: |
-          cd scripts
           CONCURRENCY=${{ github.event_name == 'workflow_dispatch' && inputs.concurrency || 3 }}
-          node packages/sync.js --concurrency=$CONCURRENCY ${{ inputs.skip_transifex && '--skip-transifex' || '' }}
-      
-      - name: Generate Step Summary
-        if: always()
-        run: |
-          echo "## Package Sync Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
-          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          node packages/sync.js --concurrency=$CONCURRENCY ${{ inputs.skip_transifex && '--skip-transifex' || '' }} 2>&1 | tee sync-output.txt
 
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" == "true" ]; then
-            echo "**Mode:** Dry Run (Preview Only)" >> $GITHUB_STEP_SUMMARY
+          # Extract markdown report (everything after "## Package Sync Report")
+          if grep -q "## Package Sync Report" sync-output.txt; then
+            sed -n '/## Package Sync Report/,$p' sync-output.txt >> $GITHUB_STEP_SUMMARY
           else
-            echo "**Mode:** Production" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Concurrency:** ${{ github.event_name == 'workflow_dispatch' && inputs.concurrency || 3 }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Skip Transifex:** ${{ github.event_name == 'workflow_dispatch' && inputs.skip_transifex || false }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Append sync report if it exists
-          if [ -f "sync-report.md" ]; then
-            cat sync-report.md >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ Sync report not found. Check job logs for details." >> $GITHUB_STEP_SUMMARY
+            echo "## Sync Results" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat sync-output.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           fi
 
