@@ -25,7 +25,8 @@ export const compareTranslations = function (current, incoming) {
             
             for (const [key, value] of Object.entries(translations)) {
                 // Skip empty values
-                if (!value || value.trim() === '') continue;
+                if (!value) continue;
+                if (typeof value === 'string' && value.trim() === '') continue;
 
                 const currentValue = currentLocale[key];
 
@@ -35,8 +36,8 @@ export const compareTranslations = function (current, incoming) {
                 } else if (currentValue !== value) {
                     changes.updated.push({
                         resource,
-locale,
-key,
+                        locale,
+                        key,
                         oldValue: currentValue,
                         newValue: value
                     });
@@ -67,11 +68,13 @@ export const mergeTranslations = function (current, incoming) {
         
         for (const [locale, translations] of Object.entries(incomingResource)) {
             if (!merged[resource][locale]) merged[resource][locale] = {};
-            
+
             for (const [key, value] of Object.entries(translations)) {
-                if (value && value.trim() !== '') {
-                    merged[resource][locale][key] = value;
-                }
+                // Skip empty values
+                if (!value) continue;
+                if (typeof value === 'string' && value.trim() === '') continue;
+
+                merged[resource][locale][key] = value;
             }
         }
     }

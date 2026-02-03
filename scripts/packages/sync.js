@@ -407,16 +407,9 @@ The automatic sync process encountered an error while processing this repository
 
 🔗 [View workflow run](${workflowRunUrl || 'N/A'})
 
-### How to Fix
+### Next Steps
 
-1. Ensure the tag \`${error.version}\` exists and is accessible
-2. Verify the repository is public
-3. Check that \`package.json\` contains valid \`openblock\` configuration
-4. Ensure the tag format is \`X.Y.Z\` (e.g., \`1.0.0\`), not \`vX.Y.Z\`
-
-### Need Help?
-
-If you believe this is a bug in the sync process, please report it at:
+Please check the error message above and verify your repository configuration. If you believe this is a bug in the sync process, please report it at:
 https://github.com/openblockcc/openblock-registry/issues
 
 ---

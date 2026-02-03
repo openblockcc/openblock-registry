@@ -46,3 +46,10 @@ jobs:
             ${{ inputs.dry_run && '--dry-run' || '' }} \
             ${{ inputs.plugin && format('--plugin={0}', inputs.plugin) || '' }}
 
+      - name: Output Report to Step Summary
+        if: always()
+        run: |
+          if [ -f translation-sync-report.md ]; then
+            cat translation-sync-report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
