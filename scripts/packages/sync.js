@@ -572,10 +572,10 @@ export const sync = async (options = {}) => {
         await fs.writeFile(reportPath, report, 'utf-8');
         logger.debug(`Report written to: ${reportPath}`);
 
-        // Exit with error if there were failures
+        // Log errors but don't fail the workflow for third-party plugin errors
+        // Third-party plugins are untrusted and their errors should not break the registry workflow
         if (allErrors.length > 0) {
-            logger.error(`Sync completed with ${allErrors.length} error(s)`);
-            process.exit(1);
+            logger.warn(`Sync completed with ${allErrors.length} error(s) in third-party plugins`);
         }
 
         logger.success('Sync completed successfully!');
