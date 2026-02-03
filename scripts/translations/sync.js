@@ -194,7 +194,11 @@ newContent,
             changes: diff.changes
         });
 
-        logger.success(`  Created PR #${pr.number}: ${pr.url}`);
+        if (pr.updated) {
+            logger.success(`  Updated existing PR #${pr.number}: ${pr.url}`);
+        } else {
+            logger.success(`  Created new PR #${pr.number}: ${pr.url}`);
+        }
 
         return {updated: true, pr, changes: diff.changes};
         

@@ -165,6 +165,41 @@ const updateFile = async function (owner, repo, path, content, message, branch, 
 };
 
 /**
+ * Find existing PR by title
+ * @param {string} owner - Repo owner
+ * @param {string} repo - Repo name
+ * @param {string} title - PR title to search for
+ * @param {string} head - Head branch (fork:branch) to match
+ * @returns {Promise<object|null>} PR info or null if not found
+ */
+const findExistingPR = async function (owner, repo, title, head) {
+    try {
+        const prs = await githubRequest(`${GITHUB_API}/repos/${owner}/${repo}/pulls?state=open`);
+        // Find PR with matching title and head
+        return prs.find(pr => pr.title === title && pr.head.label === head) || null;
+    } catch (err) {
+        logger.warn(`Failed to search for existing PR: ${err.message}`);
+        return null;
+    }
+};
+
+/**
+ * Update existing PR
+ * @param {string} owner - Repo owner
+ * @param {string} repo - Repo name
+ * @param {number} prNumber - PR number
+ * @param {string} body - New PR body
+ * @returns {Promise<object>} Updated PR info
+ */
+const updatePR = async function (owner, repo, prNumber, body) {
+    return githubRequest(`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({body})
+    });
+};
+
+/**
  * Create Pull Request
  * @param {string} owner - Repo owner
  * @param {string} repo - Repo name
@@ -220,7 +255,7 @@ ${moreCount > 0 ? `\n... and ${moreCount} more changes` : ''}
 };
 
 /**
- * Create translation update PR (Fork mode)
+ * Create or update translation PR (Fork mode)
  * @param {object} options - Options
  * @param {string} options.owner - Original repo owner
  * @param {string} options.repo - Repo name
@@ -232,6 +267,9 @@ ${moreCount > 0 ? `\n... and ${moreCount} more changes` : ''}
 export const createTranslationPR = async function (options) {
     const {owner, repo, translationsPath, newContent, changes} = options;
 
+    const prTitle = 'Update translations from Transifex';
+    const prBody = generatePRBody(changes);
+
     // 1. Ensure fork exists
     logger.info(`  Forking ${owner}/${repo}...`);
     const fork = await ensureFork(owner, repo);
@@ -239,16 +277,44 @@ export const createTranslationPR = async function (options) {
     // 2. Sync fork to upstream latest
     const defaultBranch = await syncFork(fork.owner, repo, owner);
 
-    // 3. Create new branch
-    const branchName = `translations-${Date.now()}`;
+    // 3. Check for existing PR
+    const branchName = 'translations-sync';
+    const headLabel = `${fork.owner}:${branchName}`;
+    const existingPR = await findExistingPR(owner, repo, prTitle, headLabel);
+
+    if (existingPR) {
+        logger.info(`  Found existing PR #${existingPR.number}, updating...`);
+
+        // 3a. Update existing branch
+        const fileInfo = await getFileInfo(fork.owner, repo, translationsPath, branchName);
+        await updateFile(
+            fork.owner, repo, translationsPath, newContent,
+            'Update translations from Transifex',
+            branchName, fileInfo.sha
+        );
+        logger.debug(`  Updated ${translationsPath} in existing branch`);
+
+        // 3b. Update PR body
+        await updatePR(owner, repo, existingPR.number, prBody);
+        logger.debug(`  Updated PR #${existingPR.number} description`);
+
+        return {
+            number: existingPR.number,
+            url: existingPR.html_url,
+            updated: true
+        };
+    }
+
+    // 4. Create new branch (if no existing PR)
+    logger.info(`  Creating new PR...`);
     const baseSha = await getBranchSha(fork.owner, repo, defaultBranch);
     await createBranch(fork.owner, repo, branchName, baseSha);
     logger.debug(`  Created branch: ${branchName}`);
 
-    // 4. Get current file SHA
+    // 5. Get current file SHA
     const fileInfo = await getFileInfo(fork.owner, repo, translationsPath, defaultBranch);
 
-    // 5. Update file
+    // 6. Update file
     await updateFile(
         fork.owner, repo, translationsPath, newContent,
         'Update translations from Transifex',
@@ -256,18 +322,19 @@ export const createTranslationPR = async function (options) {
     );
     logger.debug(`  Updated ${translationsPath}`);
 
-    // 6. Create PR (from fork to original repo)
+    // 7. Create PR (from fork to original repo)
     const pr = await createPR(
         owner, repo,
-        'Update translations from Transifex',
-        generatePRBody(changes),
-        `${fork.owner}:${branchName}`,
+        prTitle,
+        prBody,
+        headLabel,
         defaultBranch
     );
 
     return {
         number: pr.number,
-        url: pr.html_url
+        url: pr.html_url,
+        updated: false
     };
 };
 
