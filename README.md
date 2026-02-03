@@ -1,126 +1,125 @@
 # OpenBlock Registry
 
-OpenBlock 官方插件注册中心，管理所有官方和社区贡献的设备、扩展和工具链。
+The central index and distribution system for the OpenBlock ecosystem. This repository manages plugin registration, toolchain configuration, and automated distribution to users worldwide.
 
-## 概述
+## Table of Contents
 
-此仓库是 OpenBlock 生态系统的中央索引，包含：
+- [Plugin Types](#plugin-types)
+- [Publishing Plugins](#publishing-plugins)
+- [Version Management](#version-management)
+- [Translation](#translation)
+- [Toolchains](#toolchains)
+- [FAQ](#faq)
 
-- **设备 (Devices)** - Arduino、ESP32 等开发板定义
-- **扩展 (Extensions)** - 传感器、执行器等功能扩展
-- **工具链 (Toolchains)** - 编译器和上传工具
+## Plugin Types
 
-## 资源获取
+- **Devices** - Board definitions (e.g., Arduino Uno R4, ESP32)
+- **Extensions** - Functional modules (e.g., sensors, actuators, communication modules)
 
-所有资源托管在 Cloudflare R2，通过 CDN 分发：
+## Publishing Plugins
 
-```text
-https://registry.openblock.cc/packages.json
-```
-
-## 仓库结构
-
-```text
-openblock-registry/
-├── README.md                    # 本文件
-├── CONTRIBUTING.md              # 贡献指南
-├── registry.json                # 设备和扩展仓库列表
-├── toolchains.json              # 工具链构建配置
-├── TOOLCHAINS.md                # 可用工具链状态表格
-├── schemas/
-│   └── registry.schema.json     # registry.json 的 JSON Schema
-└── scripts/
-    ├── generate-toolchains-md.js  # 生成 TOOLCHAINS.md 的脚本
-    └── toolchains/                # 工具链构建脚本
-```
-
-## 文件说明
-
-### registry.json
-
-存放设备和扩展的 GitHub 仓库地址列表：
+Register your plugin by adding its GitHub URL to `registry.json`:
 
 ```json
 {
-    "devices": [
-        "https://github.com/openblockcc/device-arduino-uno"
-    ],
-    "extensions": [
-        "https://github.com/openblockcc/extension-servo"
-    ]
+  "devices": [
+    "https://github.com/your-org/your-device-plugin"
+  ],
+  "extensions": [
+    "https://github.com/your-org/your-extension-plugin"
+  ]
 }
 ```
 
-### toolchains.json
+**How to publish:**
 
-存放工具链的构建配置（Arduino Board Manager URLs 和 core 映射）：
+1. Use [openblock-registry-cli](https://github.com/openblockcc/openblock-registry-cli) (recommended)
+2. Or manually submit a PR to add your repository to `registry.json`
 
-```json
-{
-    "arduino": {
-        "board_manager": {
-            "additional_urls": ["..."]
-        },
-        "packages": [
-            {
-                "id": "arduino-arduino-avr",
-                "core": "arduino:avr"
-            }
-        ]
-    }
-}
-```
+For more details, see the [Plugin Development Guide](https://wiki.openblock.cc/developer-guide/plugin-development).
 
-### TOOLCHAINS.md
+Once merged, the system will automatically:
 
-展示当前 R2 中可用的工具链状态，详见 [TOOLCHAINS.md](./TOOLCHAINS.md)。
+- Fetch plugin information from your repository
+- Validate plugin compliance
+- Add to `packages.json` index
+- Distribute via `registry.openblock.cc`
 
-## 发布你的插件
+## Version Management
 
-### 1. 安装 CLI 工具
+- Use Git tags to release new versions
+- System automatically detects tag updates daily
+- New versions are added to the index automatically
+- Users can see and install new versions in OpenBlock
 
-```bash
-npm install -g @openblock/cli
-```
+## Translation
 
-### 2. 确保你的项目符合要求
+Translation of all OpenBlock projects is managed on the Transifex service: <https://www.transifex.com/openblockcc/public/>
 
-- `package.json` 包含正确的 `openblock` 字段
-- 项目使用 Git 管理，有对应版本的 tag
-- 包含必需文件：`LICENSE`、`README.md`、`icon.png`
+Want to help translate? Join us on Transifex!
 
-### 3. 发布
+**How it works:**
 
-```bash
-cd your-plugin-project
-npx @openblock/cli publish
-```
+1. System automatically collects i18n content from your plugin
+2. Content is pushed to Transifex for community translation
+3. When new translations are available, a PR is automatically created to your repository
+4. Review and merge the PR to update translations
 
-CLI 会自动验证并创建 Pull Request，将你的仓库地址添加到 `registry.json`。
+## Toolchains
 
-## Toolchain 收录流程
+Toolchains are the tools required to compile and upload code (compilers, upload tools, libraries, etc.).
 
-```plaintext
-1. 插件开发者需要某个 toolchain
-       │
-       ▼
-2. 检查 TOOLCHAINS.md 是否已有该 toolchain
-       │
-   ┌───┴───┐
-   │       │
-   ▼       ▼
- 已有    没有
-   │       │
-   ▼       ▼
-直接使用  修改 toolchains.json 提交 PR
-```
+**Using toolchains:**
 
-## 相关链接
+- Specify the toolchain ID in your device plugin's `package.json`
+- System automatically downloads and configures toolchains for users
 
-- [OpenBlock 官网](https://openblock.cc)
-- [插件开发指南](https://openblock.cc/docs/plugin-development)
-- [CLI 工具文档](https://openblock.cc/docs/cli)
+**Available toolchains:**
 
-## 许可证
+See [TOOLCHAINS.md](./TOOLCHAINS.md) for the list of available toolchains.
+
+**Request a new toolchain:**
+
+1. Check [TOOLCHAINS.md](./TOOLCHAINS.md) to confirm it's not listed
+2. Submit an Issue or PR with your request
+
+## Automation
+
+The system automatically:
+
+- Checks all registered plugins for updates daily
+- Syncs translation files
+- Validates plugins on PR submission
+- Creates Issues in your repository if errors occur
+
+## FAQ
+
+**Q: How long until my plugin appears in OpenBlock?**
+
+A: Usually within 24 hours after PR merge.
+
+**Q: How do I update my published plugin?**
+
+A: Create a new Git tag in your plugin repository. The system will detect and update automatically.
+
+**Q: What is a translation PR?**
+
+A: The system collects i18n content and pushes to Transifex. When new translations are available, it creates a PR to your repository automatically.
+
+**Q: What if I receive an error Issue?**
+
+A: Check the error details in the Issue, fix the problem, and the system will retry on the next sync.
+
+**Q: How do I specify a toolchain?**
+
+A: Set the `toolchain` ID in the `openblock` field of your `package.json`. See [TOOLCHAINS.md](./TOOLCHAINS.md).
+
+## Resources
+
+- [Plugin Development Guide](https://wiki.openblock.cc/developer-guide/plugin-development)
+- [Registry CLI Tool](https://github.com/openblockcc/openblock-registry-cli)
+- [Issue Tracker](https://github.com/openblockcc/openblock-registry/issues)
+
+## License
 
 MIT License
