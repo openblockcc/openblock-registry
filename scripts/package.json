@@ -7,6 +7,8 @@
     "sync:toolchains": "node toolchains/sync.js",
     "diff:toolchains": "node toolchains/calculate-diff.js",
     "generate:toolchains-md": "node generate-toolchains-md.js",
+    "sync:translations": "node translations/sync.js",
+    "sync:translations:dry-run": "node translations/sync.js --dry-run",
     "validate": "node validate/index.js",
     "lint": "eslint . --ext .js --fix"
   },
@@ -17,7 +19,8 @@
     "archiver": "^6.0.1",
     "chalk": "^5.3.0",
     "extract-zip": "^2.0.1",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "openblock-l10n": "^3.15.20250608130541"
   },
   "engines": {
     "node": ">=18.0.0"
