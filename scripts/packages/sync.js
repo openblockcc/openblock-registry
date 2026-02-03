@@ -14,7 +14,13 @@ import {readRegistryJson, parseRepoUrl, isValidSemver, calculateDiff, getPackage
 import {fetchTags, fetchPackageJson, createIssue} from './github/api.js';
 import {createZipArchive} from './github/downloader.js';
 import {processVersion} from './plugin-processor.js';
-import {initTranslationsDir, mergeTranslations, pushToTransifex} from './translation-merger.js';
+import {
+    fetchTranslationsFromR2,
+    uploadTranslationsToR2,
+    initTranslationsDir,
+    mergePluginTranslations,
+    pushToTransifex
+} from './translation-merger.js';
 import {uploadFile, uploadJson} from '../common/r2-client.js';
 import {
     fetchRemotePackagesJson,
@@ -147,9 +153,10 @@ const buildPackageEntry = (distPackageJson, type, version, repoUrl, fileInfo) =>
  * @param {object} currentPackages - Current packages.json
  * @param {string} tempDir - Temporary directory
  * @param {object} options - Processing options
+ * @param {object} globalTranslations - Global translations from R2 (mutated in place)
  * @returns {Promise<object>} Processing result with added, skipped, errors, and currentPackages properties
  */
-const processRepository = async (type, repoUrl, currentPackages, tempDir, options) => {
+const processRepository = async (type, repoUrl, currentPackages, tempDir, options, globalTranslations) => {
     const {owner, repo} = parseRepoUrl(repoUrl);
     const added = [];
     const skipped = [];
@@ -253,10 +260,9 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
                     const remotePath = `${type}/${id}/${version}.zip`;
                     const uploadResult = await uploadFile(zipPath, remotePath);
 
-                    // Merge translations if available
-                    if (translationsPath) {
-                        await initTranslationsDir(GLOBAL_TRANSLATIONS_DIR);
-                        await mergeTranslations(translationsPath, GLOBAL_TRANSLATIONS_DIR);
+                    // Merge translations if available (using R2-based workflow)
+                    if (translationsPath && globalTranslations) {
+                        await mergePluginTranslations(translationsPath, globalTranslations, id);
                     }
 
                     // Build package entry using dist/package.json
@@ -467,15 +473,16 @@ export const sync = async (options = {}) => {
             logger.info(`Current devices: ${getDevices(currentPackages).length}`);
             logger.info(`Current extensions: ${getExtensions(currentPackages).length}`);
 
-            // Initialize global translations directory
+            // Fetch existing translations from R2
+            let globalTranslations = null;
             if (!dryRun) {
-                await initTranslationsDir(GLOBAL_TRANSLATIONS_DIR);
+                globalTranslations = await fetchTranslationsFromR2();
             }
 
             // Process devices
             logger.section('Processing Devices');
             for (const repoUrl of registry.devices) {
-                const result = await processRepository('devices', repoUrl, currentPackages, tempDir, options);
+                const result = await processRepository('devices', repoUrl, currentPackages, tempDir, options, globalTranslations);
                 allAdded.push(...result.added);
                 allSkipped.push(...result.skipped);
                 allErrors.push(...result.errors);
@@ -497,7 +504,7 @@ export const sync = async (options = {}) => {
             // Process extensions
             logger.section('Processing Extensions');
             for (const repoUrl of registry.extensions) {
-                const result = await processRepository('extensions', repoUrl, currentPackages, tempDir, options);
+                const result = await processRepository('extensions', repoUrl, currentPackages, tempDir, options, globalTranslations);
                 allAdded.push(...result.added);
                 allSkipped.push(...result.skipped);
                 allErrors.push(...result.errors);
@@ -523,10 +530,18 @@ export const sync = async (options = {}) => {
                 logger.success('packages.json updated');
             }
 
-            // Push translations to Transifex
-            if (!dryRun && !skipTransifex && allAdded.length > 0) {
-                logger.section('Pushing Translations to Transifex');
-                // Pass the repository root directory, not the .translations directory
+            // Upload translations to R2 and push to Transifex
+            if (!dryRun && !skipTransifex && allAdded.length > 0 && globalTranslations) {
+                logger.section('Syncing Translations');
+
+                // 1. Upload updated translations to R2
+                await uploadTranslationsToR2(globalTranslations);
+
+                // 2. Initialize local .translations directory with R2 data for Transifex push
+                await initTranslationsDir(GLOBAL_TRANSLATIONS_DIR, globalTranslations);
+
+                // 3. Push to Transifex
+                logger.info('Pushing translations to Transifex...');
                 const repoRoot = path.resolve(__dirname, '../..');
                 const pushResult = await pushToTransifex(repoRoot);
 

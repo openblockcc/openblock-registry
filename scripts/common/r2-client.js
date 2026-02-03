@@ -130,6 +130,34 @@ export const getPublicUrl = (remotePath) => {
 };
 
 /**
+ * Download and parse JSON from R2 via public URL
+ * @param {string} remotePath - Remote path in R2 bucket
+ * @returns {Promise<object|null>} Parsed JSON data, or null if file doesn't exist
+ */
+export const downloadJson = async (remotePath) => {
+    const url = getPublicUrl(remotePath);
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            if (response.status === 404) {
+                logger.debug(`File not found: ${remotePath}`);
+                return null;
+            }
+            throw new Error(`Failed to download ${remotePath}: ${response.status} ${response.statusText}`);
+        }
+        const data = await response.json();
+        logger.debug(`Downloaded: ${remotePath}`);
+        return data;
+    } catch (err) {
+        if (err.message?.includes('404') || err.cause?.code === 'ENOTFOUND') {
+            logger.debug(`File not found: ${remotePath}`);
+            return null;
+        }
+        throw err;
+    }
+};
+
+/**
  * Upload JSON data directly to R2
  * @param {object} data - JSON data to upload
  * @param {string} remotePath - Remote path in R2 bucket
@@ -157,6 +185,7 @@ export const uploadJson = async (data, remotePath) => {
 export default {
     uploadFile,
     uploadJson,
+    downloadJson,
     deleteFile,
     fileExists,
     getPublicUrl

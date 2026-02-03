@@ -1,133 +1,277 @@
 /**
  * Translation merger module
- * Merges plugin translations into global translation directory
+ * Manages plugin translations stored in R2 and synced to Transifex
  */
 
 import fs from 'fs/promises';
 import path from 'path';
 import {execSync} from 'child_process';
 import logger from '../common/logger.js';
+import {downloadJson, uploadJson} from '../common/r2-client.js';
 
 const TRANSLATION_CATEGORIES = ['interface', 'extensions', 'blocks'];
+const R2_TRANSLATIONS_PATH = 'translations';
 
 /**
- * Initialize global translations directory
- * Creates the directory structure and empty JSON files if they don't exist
- * @param {string} targetDir - Target global translations directory
+ * Extract plugin ID from translation key
+ * @param {string} key - Translation key
+ * @param {string} category - Category (interface/extensions/blocks)
+ * @returns {string|null} Plugin ID (lowercase)
+ */
+const extractPluginId = (key, category) => {
+    if (category === 'blocks') {
+        // Format: "PLUGINID_XXX" -> extract PLUGINID and convert to lowercase
+        const match = key.match(/^([A-Z][A-Z0-9]*)_/);
+        return match ? match[1].toLowerCase() : null;
+    }
+    // Format: "pluginId.something" -> extract pluginId
+    const parts = key.split('.');
+    return parts.length > 1 ? parts[0] : null;
+};
+
+/**
+ * Remove plugin's translations from translation object
+ * @param {object} translations - Translation object
+ * @param {string} pluginId - Plugin ID to remove (lowercase)
+ * @param {string} category - Category (interface/extensions/blocks)
+ * @returns {object} Translations with plugin removed
+ */
+const removePluginTranslations = (translations, pluginId, category) => {
+    const result = {};
+    for (const [key, value] of Object.entries(translations)) {
+        const keyPluginId = extractPluginId(key, category);
+        if (keyPluginId !== pluginId) {
+            result[key] = value;
+        }
+    }
+    return result;
+};
+
+/**
+ * Sort translations by namespace (plugin ID) then by key
+ * @param {object} translations - Translation object
+ * @param {string} category - Category (interface/extensions/blocks)
+ * @returns {object} Sorted translations
+ */
+const sortByNamespace = (translations, category) => {
+    // Group by plugin ID
+    const grouped = {};
+    for (const [key, value] of Object.entries(translations)) {
+        const pluginId = extractPluginId(key, category) || '_unknown';
+        if (!grouped[pluginId]) grouped[pluginId] = {};
+        grouped[pluginId][key] = value;
+    }
+
+    // Sort plugin IDs alphabetically
+    const sortedPluginIds = Object.keys(grouped).sort();
+
+    // Build sorted result: each plugin's keys are also sorted
+    const result = {};
+    for (const pluginId of sortedPluginIds) {
+        const keys = Object.keys(grouped[pluginId]).sort();
+        for (const key of keys) {
+            result[key] = grouped[pluginId][key];
+        }
+    }
+
+    return result;
+};
+
+/**
+ * Fetch all translations from R2
+ * @returns {Promise<object>} Translations by category {interface: {}, extensions: {}, blocks: {}}
+ */
+export const fetchTranslationsFromR2 = async () => {
+    logger.info('Fetching translations from R2...');
+    const translations = {
+        interface: {},
+        extensions: {},
+        blocks: {}
+    };
+
+    for (const category of TRANSLATION_CATEGORIES) {
+        const remotePath = `${R2_TRANSLATIONS_PATH}/${category}/en.json`;
+        const data = await downloadJson(remotePath);
+        if (data) {
+            translations[category] = data;
+            logger.debug(`Loaded ${category}: ${Object.keys(data).length} keys`);
+        } else {
+            logger.debug(`No existing ${category} translations in R2`);
+        }
+    }
+
+    const totalKeys = Object.values(translations).reduce((sum, cat) => sum + Object.keys(cat).length, 0);
+    logger.info(`Loaded ${totalKeys} total translation keys from R2`);
+
+    return translations;
+};
+
+/**
+ * Upload all translations to R2
+ * @param {object} translations - Translations by category
+ * @returns {Promise<void>} Promise that resolves when upload is complete
+ */
+export const uploadTranslationsToR2 = async (translations) => {
+    logger.info('Uploading translations to R2...');
+
+    for (const category of TRANSLATION_CATEGORIES) {
+        const remotePath = `${R2_TRANSLATIONS_PATH}/${category}/en.json`;
+        await uploadJson(translations[category], remotePath);
+    }
+
+    const totalKeys = Object.values(translations).reduce((sum, cat) => sum + Object.keys(cat).length, 0);
+    logger.success(`Uploaded ${totalKeys} total translation keys to R2`);
+};
+
+/**
+ * Initialize local translations directory from R2 data
+ * @param {string} targetDir - Target local translations directory
+ * @param {object} translations - Translations from R2
  * @returns {Promise<void>} Promise that resolves when initialization is complete
  */
-export const initTranslationsDir = async (targetDir) => {
-    logger.debug(`Initializing translations directory: ${targetDir}`);
+export const initTranslationsDir = async (targetDir, translations) => {
+    logger.debug(`Initializing local translations directory: ${targetDir}`);
 
     for (const category of TRANSLATION_CATEGORIES) {
         const categoryDir = path.join(targetDir, category);
         await fs.mkdir(categoryDir, {recursive: true});
 
         const filePath = path.join(categoryDir, 'en.json');
-        try {
-            await fs.access(filePath);
-            logger.debug(`${category}/en.json already exists`);
-        } catch {
-            await fs.writeFile(filePath, '{}', 'utf-8');
-            logger.debug(`Created ${category}/en.json`);
-        }
+        const data = translations[category] || {};
+        await fs.writeFile(filePath, JSON.stringify(data, null, 4), 'utf-8');
+        logger.debug(`Wrote ${category}/en.json with ${Object.keys(data).length} keys`);
     }
 };
 
 /**
- * Merge two translation objects
- * Existing keys are preserved (not overwritten)
- * @param {object} target - Target translation object
- * @param {object} source - Source translation object
- * @returns {{merged: number, skipped: number}} Merge statistics
+ * Merge plugin translations into global translations (R2-based)
+ * Removes old translations for this plugin, adds new ones, and sorts by namespace
+ * @param {string} sourceDir - Source translations directory from plugin (.translations/)
+ * @param {object} globalTranslations - Global translations object from R2
+ * @param {string} pluginId - Plugin ID (lowercase)
+ * @returns {Promise<object>} Merge statistics {added, removed, updated}
  */
-const mergeTranslationObjects = (target, source) => {
-    let merged = 0;
-    let skipped = 0;
+export const mergePluginTranslations = async (sourceDir, globalTranslations, pluginId) => {
+    logger.debug(`Merging translations for plugin: ${pluginId}`);
 
-    for (const [key, value] of Object.entries(source)) {
-        if (target[key]) {
-            skipped++;
-        } else {
-            target[key] = value;
-            merged++;
-        }
-    }
-
-    return {merged, skipped};
-};
-
-/**
- * Sort object keys alphabetically
- * @param {object} obj - Object to sort
- * @returns {object} New object with sorted keys
- */
-const sortObjectKeys = (obj) => {
-    const sorted = {};
-    const keys = Object.keys(obj).sort();
-    for (const key of keys) {
-        sorted[key] = obj[key];
-    }
-    return sorted;
-};
-
-/**
- * Merge translations from source directory to target directory
- * @param {string} sourceDir - Source translations directory (.translations/)
- * @param {string} targetDir - Target global translations directory
- * @returns {Promise<object>} Merge statistics with merged, skipped, and categories properties
- */
-export const mergeTranslations = async (sourceDir, targetDir) => {
-    logger.debug(`Merging translations from ${sourceDir} to ${targetDir}`);
-
-    let totalMerged = 0;
-    let totalSkipped = 0;
-    const categoryStats = {};
+    let totalAdded = 0;
+    let totalRemoved = 0;
+    let totalUpdated = 0;
 
     for (const category of TRANSLATION_CATEGORIES) {
         const sourceFile = path.join(sourceDir, category, 'en.json');
-        const targetFile = path.join(targetDir, category, 'en.json');
 
-        // Check if source file exists
+        // Read source translations for this plugin
+        let sourceData = {};
         try {
-            await fs.access(sourceFile);
+            const content = await fs.readFile(sourceFile, 'utf-8');
+            sourceData = JSON.parse(content);
         } catch {
-            logger.debug(`Source file not found: ${sourceFile}, skipping`);
-            categoryStats[category] = {merged: 0, skipped: 0};
+            logger.debug(`No ${category} translations for ${pluginId}`);
             continue;
         }
 
-        // Read source and target
-        const sourceContent = await fs.readFile(sourceFile, 'utf-8');
-        const sourceData = JSON.parse(sourceContent);
+        const sourceKeys = Object.keys(sourceData);
+        if (sourceKeys.length === 0) continue;
 
-        let targetData = {};
-        try {
-            const targetContent = await fs.readFile(targetFile, 'utf-8');
-            targetData = JSON.parse(targetContent);
-        } catch {
-            logger.debug(`Target file not found or invalid: ${targetFile}, creating new`);
+        // Count existing keys for this plugin before removal
+        const beforeRemoval = Object.keys(globalTranslations[category]).filter(
+            key => extractPluginId(key, category) === pluginId
+        ).length;
+
+        // Remove old translations for this plugin
+        globalTranslations[category] = removePluginTranslations(
+            globalTranslations[category],
+            pluginId,
+            category
+        );
+
+        totalRemoved += beforeRemoval;
+
+        // Add new translations
+        for (const [key, value] of Object.entries(sourceData)) {
+            globalTranslations[category][key] = value;
         }
+        totalAdded += sourceKeys.length;
 
-        // Merge
-        const stats = mergeTranslationObjects(targetData, sourceData);
-        categoryStats[category] = stats;
-        totalMerged += stats.merged;
-        totalSkipped += stats.skipped;
+        // Sort by namespace
+        globalTranslations[category] = sortByNamespace(globalTranslations[category], category);
 
-        // Sort and write back
-        const sortedData = sortObjectKeys(targetData);
-        await fs.writeFile(targetFile, JSON.stringify(sortedData, null, 4), 'utf-8');
-
-        logger.debug(`${category}: merged ${stats.merged}, skipped ${stats.skipped}`);
+        logger.debug(`${category}: removed ${beforeRemoval}, added ${sourceKeys.length}`);
     }
 
-    logger.info(`Translation merge complete: ${totalMerged} merged, ${totalSkipped} skipped`);
+    // Calculate net change
+    totalUpdated = Math.min(totalAdded, totalRemoved);
+    const netAdded = totalAdded - totalUpdated;
+    const netRemoved = totalRemoved - totalUpdated;
+
+    logger.info(`Plugin ${pluginId}: +${netAdded} -${netRemoved} ~${totalUpdated}`);
 
     return {
-        merged: totalMerged,
-        skipped: totalSkipped,
-        categories: categoryStats
+        added: netAdded,
+        removed: netRemoved,
+        updated: totalUpdated
+    };
+};
+
+/**
+ * Legacy merge function - kept for backwards compatibility
+ * @deprecated Use mergePluginTranslations with R2 workflow instead
+ * @param {string} sourceDir - Source translations directory from plugin
+ * @param {string} targetDir - Target translations directory
+ * @returns {Promise<object>} Merge statistics with merged, skipped, and categories properties
+ */
+export const mergeTranslations = async (sourceDir, targetDir) => {
+    logger.warn('Using deprecated mergeTranslations - consider switching to R2-based workflow');
+
+    // Read existing target data
+    const globalTranslations = {interface: {}, extensions: {}, blocks: {}};
+
+    for (const category of TRANSLATION_CATEGORIES) {
+        const targetFile = path.join(targetDir, category, 'en.json');
+        try {
+            const content = await fs.readFile(targetFile, 'utf-8');
+            globalTranslations[category] = JSON.parse(content);
+        } catch {
+            // File doesn't exist, start with empty
+        }
+    }
+
+    // Extract plugin ID from source translations
+    let pluginId = null;
+    for (const category of TRANSLATION_CATEGORIES) {
+        const sourceFile = path.join(sourceDir, category, 'en.json');
+        try {
+            const content = await fs.readFile(sourceFile, 'utf-8');
+            const data = JSON.parse(content);
+            const firstKey = Object.keys(data)[0];
+            if (firstKey) {
+                pluginId = extractPluginId(firstKey, category);
+                break;
+            }
+        } catch {
+            continue;
+        }
+    }
+
+    if (!pluginId) {
+        logger.warn('Could not determine plugin ID from translations');
+        return {merged: 0, skipped: 0, categories: {}};
+    }
+
+    // Use new merge logic
+    const stats = await mergePluginTranslations(sourceDir, globalTranslations, pluginId);
+
+    // Write back to target directory
+    for (const category of TRANSLATION_CATEGORIES) {
+        const targetFile = path.join(targetDir, category, 'en.json');
+        await fs.writeFile(targetFile, JSON.stringify(globalTranslations[category], null, 4), 'utf-8');
+    }
+
+    return {
+        merged: stats.added + stats.updated,
+        skipped: 0,
+        categories: {}
     };
 };
 
@@ -160,7 +304,10 @@ export const pushToTransifex = async (translationsDir) => {
 };
 
 export default {
+    fetchTranslationsFromR2,
+    uploadTranslationsToR2,
     initTranslationsDir,
+    mergePluginTranslations,
     mergeTranslations,
     pushToTransifex
 };

@@ -32,20 +32,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * @param {string} filePath - File path
  * @returns {Promise<string>} File content
  */
-const fetchRawFile = async function (owner, repo, ref, filePath) {
-    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${filePath}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch ${filePath}: ${response.status}`);
-    }
-    return response.text();
+const fetchRawFile = function (owner, repo, ref, filePath) {
+    return (async () => {
+        const url = `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${filePath}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch ${filePath}: ${response.status}`);
+        }
+        return response.text();
+    })();
 };
 
 /**
  * Parse command line arguments
  * @returns {object} Parsed arguments
  */
-const parseArgs = function () {
+const parseArgs = () => {
     const args = {};
     process.argv.slice(2).forEach(arg => {
         if (arg.startsWith('--')) {
@@ -54,14 +56,14 @@ const parseArgs = function () {
         }
     });
     return args;
-}
+};
 
 /**
  * Generate sync report in Markdown format
  * @param {object} results - Sync results
  * @returns {string} Markdown report
  */
-function generateReport(results) {
+const generateReport = function (results) {
     const {updated, skipped, failed, timestamp, dryRun} = results;
 
     let report = '## Translation Sync Report\n\n';
@@ -125,7 +127,8 @@ function generateReport(results) {
  * @param {object} options - Options
  * @returns {Promise<object>} Result
  */
-const processPlugin = async function (options) {
+const processPlugin = function (options) {
+    return (async () => {
     const {owner, repo, pluginTranslations, dryRun} = options;
     
     logger.info(`Processing ${owner}/${repo}...`);
@@ -196,6 +199,7 @@ newContent,
         logger.error(`  Failed: ${err.message}`);
         return {updated: false, error: err.message};
     }
+    })();
 };
 
 /**
@@ -203,8 +207,10 @@ newContent,
  * @param {object} options - Options
  * @param {boolean} options.dryRun - Dry run mode
  * @param {string} options.plugin - Plugin to sync
+ * @returns {Promise<void>} Promise that resolves when sync is complete
  */
-const sync = async function (options = {}) {
+const sync = function (options = {}) {
+    return (async () => {
     const {dryRun = false, plugin = null} = options;
     const timestamp = new Date().toISOString();
 
@@ -305,6 +311,7 @@ const sync = async function (options = {}) {
         logger.warn(`Failed: ${results.failed.length}`);
         results.failed.forEach(r => logger.error(`  - ${r.repo}: ${r.error}`));
     }
+    })();
 };
 
 // Execute
