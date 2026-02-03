@@ -1,0 +1,48 @@
+name: Sync Translations
+
+on:
+  # Weekly schedule - every Monday at 00:00 UTC
+  schedule:
+    - cron: '0 0 * * 1'
+  
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview changes without creating PRs'
+        required: false
+        type: boolean
+        default: false
+      plugin:
+        description: 'Only sync specific plugin (repo name)'
+        required: false
+        type: string
+
+jobs:
+  sync:
+    name: Sync Translations
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: cd scripts && npm ci
+      
+      - name: Sync Translations
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLUGIN_GITHUB_TOKEN: ${{ secrets.PLUGIN_GITHUB_TOKEN }}
+          TX_TOKEN: ${{ secrets.TX_TOKEN }}
+        run: |
+          cd scripts
+          node translations/sync.js \
+            ${{ inputs.dry_run && '--dry-run' || '' }} \
+            ${{ inputs.plugin && format('--plugin={0}', inputs.plugin) || '' }}
+
