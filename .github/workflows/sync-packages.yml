@@ -1,13 +1,6 @@
 name: Sync Packages
 
 on:
-  # Trigger on registry.json changes
-  push:
-    branches:
-      - main
-    paths:
-      - 'registry.json'
-
   # Daily sync at UTC 00:00
   schedule:
     - cron: '0 0 * * *'
