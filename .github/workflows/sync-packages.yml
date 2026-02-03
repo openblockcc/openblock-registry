@@ -58,6 +58,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLUGIN_GITHUB_TOKEN: ${{ secrets.PLUGIN_GITHUB_TOKEN }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -67,11 +68,12 @@ jobs:
         run: |
           cd scripts
           node packages/sync.js --dry-run --concurrency=${{ inputs.concurrency || 3 }} ${{ inputs.skip_transifex && '--skip-transifex' || '' }}
-      
+
       - name: Run sync (Production)
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLUGIN_GITHUB_TOKEN: ${{ secrets.PLUGIN_GITHUB_TOKEN }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
