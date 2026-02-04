@@ -92,7 +92,8 @@ const buildPackageEntry = (distPackageJson, type, version, repoUrl, fileInfo) =>
         'description',
         'iconURL',
         'helpLink',
-        'tags'
+        'tags',
+        'l10n'
     ];
 
     // Device-specific fields
