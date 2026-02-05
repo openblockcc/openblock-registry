@@ -121,7 +121,7 @@ export const buildPlugin = async (pluginDir) => {
         try {
             await fs.access(lockPath);
             logger.debug('Installing dependencies...');
-            const installResult = await runCommand('npm install --production', pluginDir);
+            const installResult = await runCommand('npm install --omit=dev --ignore-scripts', pluginDir);
             if (!installResult.success) {
                 return {
                     success: false,
