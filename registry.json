@@ -1,5 +1,6 @@
 {
     "devices": [
+        "https://github.com/openblock-plugin/microPythonEsp32",
         "https://github.com/openblock-plugin/arduinoEsp32",
         "https://github.com/openblock-plugin/arduinoUnoR4Minima",
         "https://github.com/openblock-plugin/arduinoUnoR4Wifi"
