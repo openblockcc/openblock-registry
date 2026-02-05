@@ -425,7 +425,7 @@ https://github.com/openblockcc/openblock-registry/issues
 ---
 *This issue was automatically created by OpenBlock Registry sync workflow.*`;
 
-            await createIssue(owner, repo, title, body, ['openblock-registry-sync']);
+            await createIssue(owner, repo, title, body);
             logger.success(`Created issue in ${owner}/${repo}`);
 
         } catch (err) {
