@@ -107,7 +107,8 @@ const buildPackageEntry = (distPackageJson, type, version, repoUrl, fileInfo) =>
         'extensionsCompatible',
         'bluetoothRequired',
         'serialportRequired',
-        'internetConnectionRequired'
+        'internetConnectionRequired',
+        'toolchains'
     ];
 
     // Extension-specific fields
