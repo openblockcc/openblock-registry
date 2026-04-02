@@ -26,7 +26,8 @@ import {
     fetchRemotePackagesJson,
     getDevices,
     getExtensions,
-    addPackageVersion
+    addPackageVersion,
+    findPackageVersion
 } from '../common/packages-json.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -162,6 +163,7 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
     const {owner, repo} = parseRepoUrl(repoUrl);
     const added = [];
     const skipped = [];
+    const rebuilt = [];
     const errors = [];
 
     logger.info(`Processing ${type}: ${owner}/${repo}`);
@@ -202,13 +204,15 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
 
         logger.info(`${owner}/${repo}: ${toAdd.length} to add, ${toSkip.length} to skip`);
 
-        // Skip versions
-        skipped.push(...toSkip.map(v => ({
-            type,
-            id,
-            repo: `${owner}/${repo}`,
-            version: v
-        })));
+        // Skip versions (only if not rebuilding)
+        if (!options.rebuild) {
+            skipped.push(...toSkip.map(v => ({
+                type,
+                id,
+                repo: `${owner}/${repo}`,
+                version: v
+            })));
+        }
 
         // Process versions to add
         for (const version of toAdd) {
@@ -309,12 +313,87 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
             }
         }
 
-        return {added, skipped, errors, currentPackages};
+        // Rebuild existing versions if requested
+        if (options.rebuild && toSkip.length > 0) {
+            logger.info(`Rebuilding ${toSkip.length} existing version(s) for ${owner}/${repo}`);
+
+            for (const version of toSkip) {
+                try {
+                    if (options.dryRun) {
+                        logger.info(`[DRY RUN] Would rebuild ${owner}/${repo}@${version}`);
+                        rebuilt.push({type, id, repo: `${owner}/${repo}`, version, dryRun: true});
+                        continue;
+                    }
+
+                    // Find existing entry to preserve file info
+                    const packages = type === 'devices' ? getDevices(currentPackages) : getExtensions(currentPackages);
+                    const existingEntry = findPackageVersion(packages, id, version);
+                    if (!existingEntry) {
+                        logger.warn(`Cannot find existing entry for ${id}@${version}, skipping rebuild`);
+                        skipped.push({type, id, repo: `${owner}/${repo}`, version});
+                        continue;
+                    }
+
+                    logger.info(`Rebuilding ${owner}/${repo}@${version}...`);
+
+                    const processResult = await processVersion({owner, repo, tag: version, type, tempDir});
+                    if (!processResult.success) {
+                        errors.push({type, repo: `${owner}/${repo}`, version, error: processResult.error});
+                        continue;
+                    }
+
+                    const {distPath, cleanup} = processResult.data;
+
+                    try {
+                        const distPackageJson = JSON.parse(
+                            await fs.readFile(path.join(distPath, 'package.json'), 'utf-8')
+                        );
+
+                        // Strip SHA-256: prefix from existing checksum for buildPackageEntry
+                        const checksum = existingEntry.checksum.startsWith('SHA-256:') ?
+                            existingEntry.checksum.slice(7) :
+                            existingEntry.checksum;
+
+                        // Rebuild entry with existing file info
+                        const packageEntry = buildPackageEntry(distPackageJson, type, version, repoUrl, {
+                            url: existingEntry.url,
+                            archiveFileName: existingEntry.archiveFileName,
+                            checksum,
+                            size: parseInt(existingEntry.size, 10)
+                        });
+
+                        // Remove old entry and add rebuilt one
+                        const idField = type === 'devices' ? 'deviceId' : 'extensionId';
+                        const filteredPackages = (currentPackages.packages[type] || []).filter(
+                            pkg => !(pkg[idField] === id && pkg.version === version)
+                        );
+                        currentPackages = {
+                            ...currentPackages,
+                            packages: {...currentPackages.packages, [type]: filteredPackages}
+                        };
+                        currentPackages = addPackageVersion(currentPackages, type, packageEntry);
+
+                        rebuilt.push({type, id, repo: `${owner}/${repo}`, version});
+                        logger.success(`Rebuilt ${owner}/${repo}@${version}`);
+
+                        await cleanup();
+                    } catch (err) {
+                        await processResult.data.cleanup();
+                        throw err;
+                    }
+                } catch (err) {
+                    logger.error(`Failed to rebuild ${owner}/${repo}@${version}: ${err.message}`);
+                    errors.push({type, repo: `${owner}/${repo}`, version, error: err.message});
+                }
+            }
+        }
+
+        return {added, skipped, rebuilt, errors, currentPackages};
 
     } catch (err) {
         logger.error(`Failed to process ${owner}/${repo}: ${err.message}`);
         errors.push({repo: `${owner}/${repo}`, version: 'N/A', error: err.message});
-        return {added, skipped, errors, currentPackages};
+        return {added, skipped, rebuilt, errors, currentPackages};
     }
 };
 
@@ -324,7 +403,7 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
  * @returns {string} Markdown report
  */
 const generateReport = (results) => {
-    const {added, skipped, errors, repositoryStats, dryRun} = results;
+    const {added, skipped, rebuilt, errors, repositoryStats, dryRun} = results;
 
     let report = '## Package Sync Report\n\n';
 
@@ -334,9 +413,9 @@ const generateReport = (results) => {
 
     // Summary
     report += '### Summary\n\n';
-    report += '| Added | Skipped | Failed |\n';
-    report += '|:-----:|:-------:|:------:|\n';
-    report += `| ${added.length} | ${skipped.length} | ${errors.length} |\n\n`;
+    report += '| Added | Rebuilt | Skipped | Failed |\n';
+    report += '|:-----:|:-------:|:-------:|:------:|\n';
+    report += `| ${added.length} | ${rebuilt.length} | ${skipped.length} | ${errors.length} |\n\n`;
 
     // Added
     if (added.length > 0) {
@@ -347,6 +426,18 @@ const generateReport = (results) => {
             const sizeKB = (item.size / 1024).toFixed(1);
             const typeLabel = item.type === 'devices' ? 'device' : 'extension';
             report += `| ${typeLabel} | ${item.id} | ${item.version} | ${sizeKB} KB | ${item.repo} |\n`;
+        });
+        report += '\n';
+    }
+
+    // Rebuilt
+    if (rebuilt.length > 0) {
+        report += '### Rebuilt (Metadata Updated)\n\n';
+        report += '| Type | ID | Version | Repository |\n';
+        report += '|------|-----|---------|------------|\n';
+        rebuilt.forEach(item => {
+            const typeLabel = item.type === 'devices' ? 'device' : 'extension';
+            report += `| ${typeLabel} | ${item.id} | ${item.version} | ${item.repo} |\n`;
         });
         report += '\n';
     }
@@ -378,10 +469,10 @@ const generateReport = (results) => {
     // Repository Status
     if (repositoryStats && repositoryStats.length > 0) {
         report += '### Repository Status\n\n';
-        report += '| Repository | Tags Found | Added | Skipped | Failed |\n';
-        report += '|------------|:----------:|:-----:|:-------:|:------:|\n';
+        report += '| Repository | Tags Found | Added | Rebuilt | Skipped | Failed |\n';
+        report += '|------------|:----------:|:-----:|:-------:|:-------:|:------:|\n';
         repositoryStats.forEach(stat => {
-            report += `| ${stat.repo} | ${stat.tagsFound} | ${stat.added} | ${stat.skipped} | ${stat.failed} |\n`;
+            report += `| ${stat.repo} | ${stat.tagsFound} | ${stat.added} | ${stat.rebuilt} | ${stat.skipped} | ${stat.failed} |\n`;
         });
         report += '\n';
     }
@@ -441,11 +532,13 @@ https://github.com/openblockcc/openblock-registry/issues
  * @param {boolean} options.dryRun - Dry run mode
  * @param {number} options.concurrency - Concurrency limit
  * @param {boolean} options.skipTransifex - Skip Transifex push
+ * @param {boolean} options.rebuild - Rebuild existing entries
  */
 export const sync = async (options = {}) => {
     const {
         dryRun = false,
-        skipTransifex = false
+        skipTransifex = false,
+        rebuild = false
     } = options;
 
     logger.section('OpenBlock Registry Package Sync');
@@ -456,8 +549,13 @@ export const sync = async (options = {}) => {
 
     const allAdded = [];
     const allSkipped = [];
+    const allRebuilt = [];
     const allErrors = [];
     const repositoryStats = [];
+
+    if (rebuild) {
+        logger.warn('REBUILD MODE - Existing entries will be rebuilt with updated metadata');
+    }
 
     try {
         // Create temp directory
@@ -489,17 +587,20 @@ export const sync = async (options = {}) => {
                 const result = await processRepository('devices', repoUrl, currentPackages, tempDir, options, globalTranslations);
                 allAdded.push(...result.added);
                 allSkipped.push(...result.skipped);
+                allRebuilt.push(...(result.rebuilt || []));
                 allErrors.push(...result.errors);
                 currentPackages = result.currentPackages || currentPackages;
 
                 // Collect repository stats
                 const {owner, repo} = parseRepoUrl(repoUrl);
                 const repoName = `${owner}/${repo}`;
-                const tagsFound = result.added.length + result.skipped.length + result.errors.length;
+                const tagsFound = result.added.length + result.skipped.length +
+                    (result.rebuilt || []).length + result.errors.length;
                 repositoryStats.push({
                     repo: repoName,
                     tagsFound,
                     added: result.added.length,
+                    rebuilt: (result.rebuilt || []).length,
                     skipped: result.skipped.length,
                     failed: result.errors.length
                 });
@@ -511,24 +612,27 @@ export const sync = async (options = {}) => {
                 const result = await processRepository('extensions', repoUrl, currentPackages, tempDir, options, globalTranslations);
                 allAdded.push(...result.added);
                 allSkipped.push(...result.skipped);
+                allRebuilt.push(...(result.rebuilt || []));
                 allErrors.push(...result.errors);
                 currentPackages = result.currentPackages || currentPackages;
 
                 // Collect repository stats
                 const {owner, repo} = parseRepoUrl(repoUrl);
                 const repoName = `${owner}/${repo}`;
-                const tagsFound = result.added.length + result.skipped.length + result.errors.length;
+                const tagsFound = result.added.length + result.skipped.length +
+                    (result.rebuilt || []).length + result.errors.length;
                 repositoryStats.push({
                     repo: repoName,
                     tagsFound,
                     added: result.added.length,
+                    rebuilt: (result.rebuilt || []).length,
                     skipped: result.skipped.length,
                     failed: result.errors.length
                 });
             }
 
             // Upload updated packages.json
-            if (!dryRun && allAdded.length > 0) {
+            if (!dryRun && (allAdded.length > 0 || allRebuilt.length > 0)) {
                 logger.section('Uploading packages.json');
                 await uploadJson(currentPackages, 'packages.json');
                 logger.success('packages.json updated');
@@ -572,6 +676,7 @@ export const sync = async (options = {}) => {
         const report = generateReport({
             added: allAdded,
             skipped: allSkipped,
+            rebuilt: allRebuilt,
             errors: allErrors,
             repositoryStats,
             dryRun
@@ -599,6 +704,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const options = {
         dryRun: args.includes('--dry-run'),
         skipTransifex: args.includes('--skip-transifex'),
+        rebuild: args.includes('--rebuild'),
         concurrency: DEFAULT_CONCURRENCY
     };
 

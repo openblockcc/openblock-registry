@@ -23,6 +23,11 @@ on:
         required: false
         type: boolean
         default: false
+      rebuild:
+        description: 'Rebuild existing entries (re-generate metadata for already synced versions)'
+        required: false
+        type: boolean
+        default: false
 
 # Prevent concurrent sync operations to avoid conflicts
 concurrency:
@@ -65,7 +70,7 @@ jobs:
           R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
           TX_TOKEN: ${{ secrets.TX_TOKEN }}
         run: |
-          node packages/sync.js --dry-run --concurrency=${{ inputs.concurrency || 3 }} ${{ inputs.skip_transifex && '--skip-transifex' || '' }} 2>&1 | tee sync-output.txt
+          node packages/sync.js --dry-run --concurrency=${{ inputs.concurrency || 3 }} ${{ inputs.skip_transifex && '--skip-transifex' || '' }} ${{ inputs.rebuild && '--rebuild' || '' }} 2>&1 | tee sync-output.txt
 
           # Extract markdown report (everything after "## Package Sync Report")
           if grep -q "## Package Sync Report" sync-output.txt; then
@@ -91,7 +96,7 @@ jobs:
           TX_TOKEN: ${{ secrets.TX_TOKEN }}
         run: |
           CONCURRENCY=${{ github.event_name == 'workflow_dispatch' && inputs.concurrency || 3 }}
-          node packages/sync.js --concurrency=$CONCURRENCY ${{ inputs.skip_transifex && '--skip-transifex' || '' }} 2>&1 | tee sync-output.txt
+          node packages/sync.js --concurrency=$CONCURRENCY ${{ inputs.skip_transifex && '--skip-transifex' || '' }} ${{ inputs.rebuild && '--rebuild' || '' }} 2>&1 | tee sync-output.txt
 
           # Extract markdown report (everything after "## Package Sync Report")
           if grep -q "## Package Sync Report" sync-output.txt; then
