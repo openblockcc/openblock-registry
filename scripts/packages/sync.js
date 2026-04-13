@@ -362,15 +362,8 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
                             size: parseInt(existingEntry.size, 10)
                         });
 
-                        // Remove old entry and add rebuilt one
-                        const idField = type === 'devices' ? 'deviceId' : 'extensionId';
-                        const filteredPackages = (currentPackages.packages[type] || []).filter(
-                            pkg => !(pkg[idField] === id && pkg.version === version)
-                        );
-                        currentPackages = {
-                            ...currentPackages,
-                            packages: {...currentPackages.packages, [type]: filteredPackages}
-                        };
+                        // addPackageVersion upserts: replaces the existing version entry
+                        // and updates top-level display fields with rebuilt metadata
                         currentPackages = addPackageVersion(currentPackages, type, packageEntry);
 
                         rebuilt.push({type, id, repo: `${owner}/${repo}`, version});

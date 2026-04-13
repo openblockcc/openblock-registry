@@ -12,6 +12,27 @@ const PACKAGES_JSON_PATH = path.resolve(__dirname, '../../packages.json');
 const REGISTRY_URL = 'https://registry.openblock.cc/packages.json';
 
 /**
+ * Fields that are version-specific and belong in the versions[] array.
+ * All other fields from a package entry are treated as display fields
+ * at the top level of the package object.
+ */
+const VERSION_FIELDS = ['version', 'url', 'archiveFileName', 'checksum', 'size'];
+
+/**
+ * Compare two version strings (X.Y.Z) for descending sort.
+ * @param {string} a - Version A
+ * @param {string} b - Version B
+ * @returns {number} Positive if b > a (sorts b before a)
+ */
+const compareVersionDesc = (a, b) => {
+    const [aMajor, aMinor, aPatch] = a.version.split('.').map(Number);
+    const [bMajor, bMinor, bPatch] = b.version.split('.').map(Number);
+    if (bMajor !== aMajor) return bMajor - aMajor;
+    if (bMinor !== aMinor) return bMinor - aMinor;
+    return bPatch - aPatch;
+};
+
+/**
  * Create empty packages.json structure
  * @returns {object} Empty packages structure
  */
@@ -123,61 +144,94 @@ export const getExtensions = (packagesJson) => {
 };
 
 /**
- * Find a package (device or extension) by ID
+ * Find all version entries for a package by ID.
  * @param {Array} packages - Packages array (devices or extensions)
  * @param {string} id - Package ID (deviceId or extensionId)
- * @returns {Array} Array of all versions for this package
+ * @returns {Array} versions[] array for the matching package, or empty array
  */
 export const findPackageVersions = (packages, id) => {
-    return packages.filter(pkg => {
-        return pkg.deviceId === id || pkg.extensionId === id;
-    });
+    const pkg = packages.find(p => p.deviceId === id || p.extensionId === id);
+    return pkg ? (pkg.versions || []) : [];
 };
 
 /**
- * Find a specific version of a package
+ * Find a specific version entry within a package.
  * @param {Array} packages - Packages array (devices or extensions)
  * @param {string} id - Package ID (deviceId or extensionId)
  * @param {string} version - Version number
- * @returns {object|undefined} Package entry or undefined
+ * @returns {object|undefined} Version entry or undefined
  */
 export const findPackageVersion = (packages, id, version) => {
-    return packages.find(pkg => {
-        const pkgId = pkg.deviceId || pkg.extensionId;
-        return pkgId === id && pkg.version === version;
+    const pkg = packages.find(p => {
+        const pkgId = p.deviceId || p.extensionId;
+        return pkgId === id;
     });
+    if (!pkg) return undefined;
+    return (pkg.versions || []).find(v => v.version === version);
 };
 
 /**
- * Add or update a package version in packages.json
+ * Add or update a package version in packages.json.
+ *
+ * Each package is stored as a single top-level object containing display fields
+ * (from the latest version) and a nested versions[] array of version-specific
+ * download entries. This function performs an upsert:
+ *   - If the package ID already exists: updates display fields and upserts the
+ *     version entry inside versions[] (add if new, replace if already present).
+ *   - If the package ID is new: creates a new top-level entry.
+ *
  * @param {object} packagesJson - Packages JSON data
  * @param {string} type - Package type ('devices' or 'extensions')
- * @param {object} packageData - Package data to add
+ * @param {object} packageData - Full package data (display fields + version fields combined)
  * @returns {object} Updated packages JSON
  */
 export const addPackageVersion = (packagesJson, type, packageData) => {
+    const idField = type === 'devices' ? 'deviceId' : 'extensionId';
+    const id = packageData[idField];
+
+    // Split packageData into version-specific entry and display fields
+    const versionEntry = {};
+    const displayData = {};
+    for (const [key, value] of Object.entries(packageData)) {
+        if (VERSION_FIELDS.includes(key)) {
+            versionEntry[key] = value;
+        } else {
+            displayData[key] = value;
+        }
+    }
+
     const packages = [...(packagesJson?.packages?.[type] ?? [])];
+    const existingIndex = packages.findIndex(p => p[idField] === id);
 
-    // Add the new version
-    packages.push(packageData);
+    if (existingIndex >= 0) {
+        // Package exists: update display fields and upsert version entry
+        const existing = {...packages[existingIndex]};
 
-    // Sort packages: by ID (ascending), then by version (descending)
-    packages.sort((a, b) => {
-        const aId = a.deviceId || a.extensionId;
-        const bId = b.deviceId || b.extensionId;
+        // Overwrite display fields with the incoming version's metadata
+        Object.assign(existing, displayData);
 
-        if (aId !== bId) {
-            return aId.localeCompare(bId);
+        // Upsert the version entry in versions[]
+        const versions = [...(existing.versions || [])];
+        const versionIndex = versions.findIndex(v => v.version === versionEntry.version);
+        if (versionIndex >= 0) {
+            versions[versionIndex] = versionEntry;
+        } else {
+            versions.push(versionEntry);
         }
 
-        // Compare versions (descending)
-        const [aMajor, aMinor, aPatch] = a.version.split('.').map(Number);
-        const [bMajor, bMinor, bPatch] = b.version.split('.').map(Number);
+        existing.versions = versions.sort(compareVersionDesc);
+        packages[existingIndex] = existing;
+    } else {
+        // New package: create top-level entry with display fields and versions[]
+        packages.push({...displayData, versions: [versionEntry]});
 
-        if (bMajor !== aMajor) return bMajor - aMajor;
-        if (bMinor !== aMinor) return bMinor - aMinor;
-        return bPatch - aPatch;
-    });
+        // Keep packages sorted by ID ascending
+        packages.sort((a, b) => {
+            const aId = a[idField] || '';
+            const bId = b[idField] || '';
+            return aId.localeCompare(bId);
+        });
+    }
 
     return {
         ...packagesJson,

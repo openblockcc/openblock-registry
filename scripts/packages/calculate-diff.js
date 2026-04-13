@@ -112,18 +112,14 @@ export const calculateDiff = (repoTags, currentVersions) => {
 };
 
 /**
- * Get all versions for a package from packages.json
+ * Get all version entries for a package from packages.json.
  * @param {Array} packages - Packages array (devices or extensions)
  * @param {string} id - Package ID (deviceId or extensionId)
- * @returns {Array<{version: string}>} Array of version objects
+ * @returns {Array<{version: string}>} versions[] array for the matching package, or empty array
  */
 export const getPackageVersions = (packages, id) => {
-    return packages
-        .filter(pkg => {
-            // Check both deviceId and extensionId
-            return pkg.deviceId === id || pkg.extensionId === id;
-        })
-        .map(pkg => ({version: pkg.version}));
+    const pkg = packages.find(p => p.deviceId === id || p.extensionId === id);
+    return pkg ? (pkg.versions || []) : [];
 };
 
 /**

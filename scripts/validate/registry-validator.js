@@ -661,16 +661,19 @@ const fetchR2Packages = async () => {
  * @returns {Promise<Set<string>>} Set of existing plugin IDs (deviceId and extensionId)
  */
 const getExistingPluginIds = async () => {
-    const packages = await fetchR2Packages();
+    const packagesJson = await fetchR2Packages();
     const ids = new Set();
 
-    if (!packages) {
+    if (!packagesJson) {
         return ids;
     }
 
+    const packages = packagesJson.packages;
+    if (!packages) return ids;
+
     // Collect device IDs
-    if (packages.device && Array.isArray(packages.device)) {
-        for (const device of packages.device) {
+    if (Array.isArray(packages.devices)) {
+        for (const device of packages.devices) {
             if (device.deviceId) {
                 ids.add(device.deviceId);
             }
@@ -678,8 +681,8 @@ const getExistingPluginIds = async () => {
     }
 
     // Collect extension IDs
-    if (packages.extension && Array.isArray(packages.extension)) {
-        for (const extension of packages.extension) {
+    if (Array.isArray(packages.extensions)) {
+        for (const extension of packages.extensions) {
             if (extension.extensionId) {
                 ids.add(extension.extensionId);
             }
