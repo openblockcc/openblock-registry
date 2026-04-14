@@ -176,8 +176,9 @@ export const findPackageVersion = (packages, id, version) => {
  * Each package is stored as a single top-level object containing display fields
  * (from the latest version) and a nested versions[] array of version-specific
  * download entries. This function performs an upsert:
- *   - If the package ID already exists: updates display fields and upserts the
- *     version entry inside versions[] (add if new, replace if already present).
+ *   - If the package ID already exists: upserts the version entry inside
+ *     versions[], and updates top-level display fields only when the incoming
+ *     version is newer than the current latest.
  *   - If the package ID is new: creates a new top-level entry.
  *
  * @param {object} packagesJson - Packages JSON data
@@ -204,13 +205,8 @@ export const addPackageVersion = (packagesJson, type, packageData) => {
     const existingIndex = packages.findIndex(p => p[idField] === id);
 
     if (existingIndex >= 0) {
-        // Package exists: update display fields and upsert version entry
+        // Package exists: upsert version entry into versions[]
         const existing = {...packages[existingIndex]};
-
-        // Overwrite display fields with the incoming version's metadata
-        Object.assign(existing, displayData);
-
-        // Upsert the version entry in versions[]
         const versions = [...(existing.versions || [])];
         const versionIndex = versions.findIndex(v => v.version === versionEntry.version);
         if (versionIndex >= 0) {
@@ -218,9 +214,23 @@ export const addPackageVersion = (packagesJson, type, packageData) => {
         } else {
             versions.push(versionEntry);
         }
-
         existing.versions = versions.sort(compareVersionDesc);
-        packages[existingIndex] = existing;
+
+        // Rebuild the top-level object from displayData (never from the old
+        // existing object) to avoid VERSION_FIELDS leaking into the root.
+        // Only use the incoming displayData when its version is the new latest,
+        // so top-level display fields always reflect the latest release.
+        const currentLatest = existing.versions[0].version;
+        const isNewest = compareVersionDesc(
+            {version: versionEntry.version},
+            {version: currentLatest}
+        ) <= 0;
+
+        packages[existingIndex] = {
+            ...(isNewest ? displayData : existing),
+            [idField]: id,
+            versions: existing.versions
+        };
     } else {
         // New package: create top-level entry with display fields and versions[]
         packages.push({...displayData, versions: [versionEntry]});
