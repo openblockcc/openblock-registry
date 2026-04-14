@@ -54,6 +54,31 @@ const formatSize = (bytes) => {
 };
 
 /**
+ * Upload a Buffer directly to R2
+ * @param {Buffer} buffer - File content buffer
+ * @param {string} remotePath - Remote path in R2 bucket
+ * @param {string} contentType - MIME type of the content
+ * @returns {Promise<{url: string}>} Upload result
+ */
+export const uploadBuffer = async (buffer, remotePath, contentType) => {
+    const client = getClient();
+
+    const command = new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: remotePath,
+        Body: buffer,
+        ContentType: contentType
+    });
+
+    await client.send(command);
+    const url = `${R2_PUBLIC_URL}/${remotePath}`;
+
+    logger.success(`Uploaded: ${remotePath} (${formatSize(buffer.length)})`);
+
+    return {url};
+};
+
+/**
  * Upload a file to R2
  * @param {string} localPath - Local file path
  * @param {string} remotePath - Remote path in R2 bucket
@@ -183,6 +208,7 @@ export const uploadJson = async (data, remotePath) => {
 };
 
 export default {
+    uploadBuffer,
     uploadFile,
     uploadJson,
     downloadJson,

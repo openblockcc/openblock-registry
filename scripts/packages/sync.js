@@ -21,7 +21,7 @@ import {
     mergePluginTranslations,
     pushToTransifex
 } from './translation-merger.js';
-import {uploadFile, uploadJson} from '../common/r2-client.js';
+import {uploadBuffer, uploadFile, uploadJson} from '../common/r2-client.js';
 import {
     fetchRemotePackagesJson,
     createEmptyPackagesJson,
@@ -31,6 +31,61 @@ import {
 } from '../common/packages-json.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// MIME type map for image uploads
+const IMAGE_MIME_TYPES = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif'
+};
+
+// Icon field name → R2 file stem mapping
+const ICON_FIELDS = {
+    iconURL: 'icon',
+    connectionIconURL: 'connectionIcon',
+    connectionSmallIconURL: 'connectionSmallIcon'
+};
+
+/**
+ * Upload plugin icon files to R2 and return a map of field → R2 URL.
+ * Skips fields that are already remote URLs.
+ * @param {object} openblock - openblock section of dist/package.json
+ * @param {string} type - Package type ('devices' or 'extensions')
+ * @param {string} id - Package ID
+ * @param {string} distPath - Path to the built dist directory
+ * @returns {Promise<object>} Map of icon field names to R2 URLs
+ */
+const uploadPluginIcons = async (openblock, type, id, distPath) => {
+    const updates = {};
+
+    for (const [field, stem] of Object.entries(ICON_FIELDS)) {
+        const iconRelPath = openblock[field];
+        if (!iconRelPath || iconRelPath.startsWith('http://') || iconRelPath.startsWith('https://')) {
+            continue;
+        }
+
+        const localPath = path.resolve(distPath, iconRelPath);
+        try {
+            await fs.access(localPath);
+        } catch {
+            logger.warn(`Icon file not found, skipping: ${localPath}`);
+            continue;
+        }
+
+        const ext = path.extname(localPath).toLowerCase();
+        const contentType = IMAGE_MIME_TYPES[ext] || 'application/octet-stream';
+        const remotePath = `${type}/${id}/${stem}${ext}`;
+
+        const buffer = await fs.readFile(localPath);
+        const uploadResult = await uploadBuffer(buffer, remotePath, contentType);
+        updates[field] = uploadResult.url;
+    }
+
+    return updates;
+};
 
 // Configuration
 const DEFAULT_CONCURRENCY = 3;
@@ -252,9 +307,15 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
                 const {distPath, translationsPath, cleanup} = processResult.data;
 
                 try {
-                    // Read package.json from dist directory (contains base64 iconURL and processed fields)
+                    // Read package.json from dist directory
                     const distPackageJsonPath = path.join(distPath, 'package.json');
                     const distPackageJson = JSON.parse(await fs.readFile(distPackageJsonPath, 'utf-8'));
+
+                    // Upload icon files to R2 and replace relative paths with R2 URLs
+                    const iconUpdates = await uploadPluginIcons(distPackageJson.openblock || {}, type, id, distPath);
+                    if (Object.keys(iconUpdates).length > 0) {
+                        distPackageJson.openblock = {...(distPackageJson.openblock || {}), ...iconUpdates};
+                    }
 
                     // Create zip from dist directory
                     const archiveFileName = `${id}-${version}.zip`;
