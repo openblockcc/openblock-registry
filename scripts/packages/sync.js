@@ -25,7 +25,6 @@ import {uploadFile, uploadJson} from '../common/r2-client.js';
 import {
     fetchRemotePackagesJson,
     createEmptyPackagesJson,
-    migrateToNestedFormat,
     getDevices,
     getExtensions,
     addPackageVersion
@@ -446,49 +445,18 @@ https://github.com/openblockcc/openblock-registry/issues
  * @param {number} options.concurrency - Concurrency limit
  * @param {boolean} options.skipTransifex - Skip Transifex push
  * @param {boolean} options.rebuild - Re-process all versions from source, producing a clean packages.json
- * @param {boolean} options.reformat - Migrate packages.json to the nested format without re-processing packages
  */
 export const sync = async (options = {}) => {
     const {
         dryRun = false,
         skipTransifex = false,
-        rebuild = false,
-        reformat = false
+        rebuild = false
     } = options;
 
     logger.section('OpenBlock Registry Package Sync');
 
     if (dryRun) {
         logger.warn('DRY RUN MODE - No changes will be made');
-    }
-
-    // --reformat: migrate packages.json from legacy flat format to nested format
-    // without touching GitHub or rebuilding any plugin archives.
-    if (reformat) {
-        logger.warn('REFORMAT MODE - Migrating packages.json to nested format, no packages will be re-processed');
-        try {
-            logger.section('Fetching Current Packages');
-            const current = await fetchRemotePackagesJson();
-            logger.info(`Current devices: ${getDevices(current).length}`);
-            logger.info(`Current extensions: ${getExtensions(current).length}`);
-
-            const migrated = migrateToNestedFormat(current);
-            logger.info(`Migrated devices: ${getDevices(migrated).length}`);
-            logger.info(`Migrated extensions: ${getExtensions(migrated).length}`);
-
-            if (!dryRun) {
-                logger.section('Uploading packages.json');
-                await uploadJson(migrated, 'packages.json');
-                logger.success('packages.json updated');
-            }
-
-            logger.success('Reformat completed successfully!');
-        } catch (err) {
-            logger.error(`Reformat failed: ${err.message}`);
-            console.error(err.stack);
-            process.exit(1);
-        }
-        return;
     }
 
     const allAdded = [];
@@ -643,7 +611,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         dryRun: args.includes('--dry-run'),
         skipTransifex: args.includes('--skip-transifex'),
         rebuild: args.includes('--rebuild'),
-        reformat: args.includes('--reformat'),
         concurrency: DEFAULT_CONCURRENCY
     };
 
