@@ -24,10 +24,11 @@ import {
 import {uploadFile, uploadJson} from '../common/r2-client.js';
 import {
     fetchRemotePackagesJson,
+    createEmptyPackagesJson,
+    migrateToNestedFormat,
     getDevices,
     getExtensions,
-    addPackageVersion,
-    findPackageVersion
+    addPackageVersion
 } from '../common/packages-json.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -163,7 +164,6 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
     const {owner, repo} = parseRepoUrl(repoUrl);
     const added = [];
     const skipped = [];
-    const rebuilt = [];
     const errors = [];
 
     logger.info(`Processing ${type}: ${owner}/${repo}`);
@@ -313,80 +313,12 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
             }
         }
 
-        // Rebuild existing versions if requested
-        if (options.rebuild && toSkip.length > 0) {
-            logger.info(`Rebuilding ${toSkip.length} existing version(s) for ${owner}/${repo}`);
-
-            for (const version of toSkip) {
-                try {
-                    if (options.dryRun) {
-                        logger.info(`[DRY RUN] Would rebuild ${owner}/${repo}@${version}`);
-                        rebuilt.push({type, id, repo: `${owner}/${repo}`, version, dryRun: true});
-                        continue;
-                    }
-
-                    // Find existing entry to preserve file info
-                    const packages = type === 'devices' ? getDevices(currentPackages) : getExtensions(currentPackages);
-                    const existingEntry = findPackageVersion(packages, id, version);
-                    if (!existingEntry) {
-                        logger.warn(`Cannot find existing entry for ${id}@${version}, skipping rebuild`);
-                        skipped.push({type, id, repo: `${owner}/${repo}`, version});
-                        continue;
-                    }
-
-                    logger.info(`Rebuilding ${owner}/${repo}@${version}...`);
-
-                    const processResult = await processVersion({owner, repo, tag: version, type, tempDir});
-                    if (!processResult.success) {
-                        errors.push({type, repo: `${owner}/${repo}`, version, error: processResult.error});
-                        continue;
-                    }
-
-                    const {distPath, cleanup} = processResult.data;
-
-                    try {
-                        const distPackageJson = JSON.parse(
-                            await fs.readFile(path.join(distPath, 'package.json'), 'utf-8')
-                        );
-
-                        // Strip SHA-256: prefix from existing checksum for buildPackageEntry
-                        const checksum = existingEntry.checksum.startsWith('SHA-256:') ?
-                            existingEntry.checksum.slice(7) :
-                            existingEntry.checksum;
-
-                        // Rebuild entry with existing file info
-                        const packageEntry = buildPackageEntry(distPackageJson, type, version, repoUrl, {
-                            url: existingEntry.url,
-                            archiveFileName: existingEntry.archiveFileName,
-                            checksum,
-                            size: parseInt(existingEntry.size, 10)
-                        });
-
-                        // addPackageVersion upserts: replaces the existing version entry
-                        // and updates top-level display fields with rebuilt metadata
-                        currentPackages = addPackageVersion(currentPackages, type, packageEntry);
-
-                        rebuilt.push({type, id, repo: `${owner}/${repo}`, version});
-                        logger.success(`Rebuilt ${owner}/${repo}@${version}`);
-
-                        await cleanup();
-                    } catch (err) {
-                        await processResult.data.cleanup();
-                        throw err;
-                    }
-                } catch (err) {
-                    logger.error(`Failed to rebuild ${owner}/${repo}@${version}: ${err.message}`);
-                    errors.push({type, repo: `${owner}/${repo}`, version, error: err.message});
-                }
-            }
-        }
-
-        return {added, skipped, rebuilt, errors, currentPackages};
+        return {added, skipped, errors, currentPackages};
 
     } catch (err) {
         logger.error(`Failed to process ${owner}/${repo}: ${err.message}`);
         errors.push({repo: `${owner}/${repo}`, version: 'N/A', error: err.message});
-        return {added, skipped, rebuilt, errors, currentPackages};
+        return {added, skipped, errors, currentPackages};
     }
 };
 
@@ -396,7 +328,7 @@ const processRepository = async (type, repoUrl, currentPackages, tempDir, option
  * @returns {string} Markdown report
  */
 const generateReport = (results) => {
-    const {added, skipped, rebuilt, errors, repositoryStats, dryRun} = results;
+    const {added, skipped, errors, repositoryStats, dryRun} = results;
 
     let report = '## Package Sync Report\n\n';
 
@@ -406,9 +338,9 @@ const generateReport = (results) => {
 
     // Summary
     report += '### Summary\n\n';
-    report += '| Added | Rebuilt | Skipped | Failed |\n';
-    report += '|:-----:|:-------:|:-------:|:------:|\n';
-    report += `| ${added.length} | ${rebuilt.length} | ${skipped.length} | ${errors.length} |\n\n`;
+    report += '| Added | Skipped | Failed |\n';
+    report += '|:-----:|:-------:|:------:|\n';
+    report += `| ${added.length} | ${skipped.length} | ${errors.length} |\n\n`;
 
     // Added
     if (added.length > 0) {
@@ -419,18 +351,6 @@ const generateReport = (results) => {
             const sizeKB = (item.size / 1024).toFixed(1);
             const typeLabel = item.type === 'devices' ? 'device' : 'extension';
             report += `| ${typeLabel} | ${item.id} | ${item.version} | ${sizeKB} KB | ${item.repo} |\n`;
-        });
-        report += '\n';
-    }
-
-    // Rebuilt
-    if (rebuilt.length > 0) {
-        report += '### Rebuilt (Metadata Updated)\n\n';
-        report += '| Type | ID | Version | Repository |\n';
-        report += '|------|-----|---------|------------|\n';
-        rebuilt.forEach(item => {
-            const typeLabel = item.type === 'devices' ? 'device' : 'extension';
-            report += `| ${typeLabel} | ${item.id} | ${item.version} | ${item.repo} |\n`;
         });
         report += '\n';
     }
@@ -462,10 +382,10 @@ const generateReport = (results) => {
     // Repository Status
     if (repositoryStats && repositoryStats.length > 0) {
         report += '### Repository Status\n\n';
-        report += '| Repository | Tags Found | Added | Rebuilt | Skipped | Failed |\n';
-        report += '|------------|:----------:|:-----:|:-------:|:-------:|:------:|\n';
+        report += '| Repository | Tags Found | Added | Skipped | Failed |\n';
+        report += '|------------|:----------:|:-----:|:-------:|:------:|\n';
         repositoryStats.forEach(stat => {
-            report += `| ${stat.repo} | ${stat.tagsFound} | ${stat.added} | ${stat.rebuilt} | ${stat.skipped} | ${stat.failed} |\n`;
+            report += `| ${stat.repo} | ${stat.tagsFound} | ${stat.added} | ${stat.skipped} | ${stat.failed} |\n`;
         });
         report += '\n';
     }
@@ -525,13 +445,15 @@ https://github.com/openblockcc/openblock-registry/issues
  * @param {boolean} options.dryRun - Dry run mode
  * @param {number} options.concurrency - Concurrency limit
  * @param {boolean} options.skipTransifex - Skip Transifex push
- * @param {boolean} options.rebuild - Rebuild existing entries
+ * @param {boolean} options.rebuild - Re-process all versions from source, producing a clean packages.json
+ * @param {boolean} options.reformat - Migrate packages.json to the nested format without re-processing packages
  */
 export const sync = async (options = {}) => {
     const {
         dryRun = false,
         skipTransifex = false,
-        rebuild = false
+        rebuild = false,
+        reformat = false
     } = options;
 
     logger.section('OpenBlock Registry Package Sync');
@@ -540,14 +462,42 @@ export const sync = async (options = {}) => {
         logger.warn('DRY RUN MODE - No changes will be made');
     }
 
+    // --reformat: migrate packages.json from legacy flat format to nested format
+    // without touching GitHub or rebuilding any plugin archives.
+    if (reformat) {
+        logger.warn('REFORMAT MODE - Migrating packages.json to nested format, no packages will be re-processed');
+        try {
+            logger.section('Fetching Current Packages');
+            const current = await fetchRemotePackagesJson();
+            logger.info(`Current devices: ${getDevices(current).length}`);
+            logger.info(`Current extensions: ${getExtensions(current).length}`);
+
+            const migrated = migrateToNestedFormat(current);
+            logger.info(`Migrated devices: ${getDevices(migrated).length}`);
+            logger.info(`Migrated extensions: ${getExtensions(migrated).length}`);
+
+            if (!dryRun) {
+                logger.section('Uploading packages.json');
+                await uploadJson(migrated, 'packages.json');
+                logger.success('packages.json updated');
+            }
+
+            logger.success('Reformat completed successfully!');
+        } catch (err) {
+            logger.error(`Reformat failed: ${err.message}`);
+            console.error(err.stack);
+            process.exit(1);
+        }
+        return;
+    }
+
     const allAdded = [];
     const allSkipped = [];
-    const allRebuilt = [];
     const allErrors = [];
     const repositoryStats = [];
 
     if (rebuild) {
-        logger.warn('REBUILD MODE - Existing entries will be rebuilt with updated metadata');
+        logger.warn('REBUILD MODE - Rebuilding all versions from source');
     }
 
     try {
@@ -562,9 +512,11 @@ export const sync = async (options = {}) => {
             logger.info(`Devices: ${registry.devices.length}`);
             logger.info(`Extensions: ${registry.extensions.length}`);
 
-            // Fetch current packages.json from R2
+            // In rebuild mode start from an empty structure so all versions are
+            // re-processed from source, producing a clean new-format packages.json.
+            // Otherwise fetch the current packages.json from R2 and apply incremental updates.
             logger.section('Fetching Current Packages');
-            let currentPackages = await fetchRemotePackagesJson();
+            let currentPackages = rebuild ? createEmptyPackagesJson() : await fetchRemotePackagesJson();
             logger.info(`Current devices: ${getDevices(currentPackages).length}`);
             logger.info(`Current extensions: ${getExtensions(currentPackages).length}`);
 
@@ -580,20 +532,17 @@ export const sync = async (options = {}) => {
                 const result = await processRepository('devices', repoUrl, currentPackages, tempDir, options, globalTranslations);
                 allAdded.push(...result.added);
                 allSkipped.push(...result.skipped);
-                allRebuilt.push(...(result.rebuilt || []));
                 allErrors.push(...result.errors);
                 currentPackages = result.currentPackages || currentPackages;
 
                 // Collect repository stats
                 const {owner, repo} = parseRepoUrl(repoUrl);
                 const repoName = `${owner}/${repo}`;
-                const tagsFound = result.added.length + result.skipped.length +
-                    (result.rebuilt || []).length + result.errors.length;
+                const tagsFound = result.added.length + result.skipped.length + result.errors.length;
                 repositoryStats.push({
                     repo: repoName,
                     tagsFound,
                     added: result.added.length,
-                    rebuilt: (result.rebuilt || []).length,
                     skipped: result.skipped.length,
                     failed: result.errors.length
                 });
@@ -605,27 +554,24 @@ export const sync = async (options = {}) => {
                 const result = await processRepository('extensions', repoUrl, currentPackages, tempDir, options, globalTranslations);
                 allAdded.push(...result.added);
                 allSkipped.push(...result.skipped);
-                allRebuilt.push(...(result.rebuilt || []));
                 allErrors.push(...result.errors);
                 currentPackages = result.currentPackages || currentPackages;
 
                 // Collect repository stats
                 const {owner, repo} = parseRepoUrl(repoUrl);
                 const repoName = `${owner}/${repo}`;
-                const tagsFound = result.added.length + result.skipped.length +
-                    (result.rebuilt || []).length + result.errors.length;
+                const tagsFound = result.added.length + result.skipped.length + result.errors.length;
                 repositoryStats.push({
                     repo: repoName,
                     tagsFound,
                     added: result.added.length,
-                    rebuilt: (result.rebuilt || []).length,
                     skipped: result.skipped.length,
                     failed: result.errors.length
                 });
             }
 
             // Upload updated packages.json
-            if (!dryRun && (allAdded.length > 0 || allRebuilt.length > 0)) {
+            if (!dryRun && allAdded.length > 0) {
                 logger.section('Uploading packages.json');
                 await uploadJson(currentPackages, 'packages.json');
                 logger.success('packages.json updated');
@@ -669,7 +615,6 @@ export const sync = async (options = {}) => {
         const report = generateReport({
             added: allAdded,
             skipped: allSkipped,
-            rebuilt: allRebuilt,
             errors: allErrors,
             repositoryStats,
             dryRun
@@ -698,6 +643,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         dryRun: args.includes('--dry-run'),
         skipTransifex: args.includes('--skip-transifex'),
         rebuild: args.includes('--rebuild'),
+        reformat: args.includes('--reformat'),
         concurrency: DEFAULT_CONCURRENCY
     };
 

@@ -33,6 +33,94 @@ const compareVersionDesc = (a, b) => {
 };
 
 /**
+ * Migrate packages.json from the legacy flat per-version format to the current
+ * nested per-plugin format, without re-downloading or rebuilding any packages.
+ *
+ * Legacy format: packages[type] is a flat array where each version of a plugin
+ * is a separate object with all fields (including display fields) duplicated.
+ *
+ * New format: one top-level object per plugin with display fields from the
+ * latest version and a nested versions[] array of download-specific entries.
+ *
+ * This function is idempotent: already-migrated entries (those that have a
+ * versions[] array) are handled correctly alongside legacy flat entries.
+ *
+ * @param {object} packagesJson - Packages JSON data (may be old or new format)
+ * @returns {object} Packages JSON in the current nested format
+ */
+export const migrateToNestedFormat = packagesJson => {
+    const migrateType = (entries, idField) => {
+        const grouped = new Map();
+
+        for (const entry of entries) {
+            const id = entry[idField];
+            if (!id) continue;
+
+            if (!grouped.has(id)) {
+                grouped.set(id, {displayData: null, versions: []});
+            }
+
+            const group = grouped.get(id);
+
+            if (Array.isArray(entry.versions)) {
+                // Already in new format: merge its versions[] and take display fields
+                // if we haven't seen this plugin yet
+                if (!group.displayData) {
+                    const displayData = {...entry};
+                    delete displayData.versions;
+                    group.displayData = displayData;
+                }
+                for (const v of entry.versions) {
+                    if (!group.versions.some(existing => existing.version === v.version)) {
+                        group.versions.push(v);
+                    }
+                }
+            } else {
+                // Legacy flat entry: split into display fields and version-specific entry
+                const versionEntry = {};
+                const displayData = {};
+                for (const [key, value] of Object.entries(entry)) {
+                    if (VERSION_FIELDS.includes(key)) {
+                        versionEntry[key] = value;
+                    } else {
+                        displayData[key] = value;
+                    }
+                }
+
+                // Use the first (highest-version) entry's display fields as the
+                // canonical display data, since entries arrive sorted descending
+                if (!group.displayData) {
+                    group.displayData = displayData;
+                }
+
+                if (versionEntry.version &&
+                    !group.versions.some(v => v.version === versionEntry.version)) {
+                    group.versions.push(versionEntry);
+                }
+            }
+        }
+
+        return Array.from(grouped.values())
+            .filter(({displayData}) => displayData !== null)
+            .map(({displayData, versions}) => ({
+                ...displayData,
+                versions: versions.sort(compareVersionDesc)
+            }))
+            .sort((a, b) => (a[idField] || '').localeCompare(b[idField] || ''));
+    };
+
+    const packages = packagesJson?.packages ?? {};
+    return {
+        ...packagesJson,
+        packages: {
+            ...packages,
+            devices: migrateType(packages.devices ?? [], 'deviceId'),
+            extensions: migrateType(packages.extensions ?? [], 'extensionId')
+        }
+    };
+};
+
+/**
  * Create empty packages.json structure
  * @returns {object} Empty packages structure
  */
