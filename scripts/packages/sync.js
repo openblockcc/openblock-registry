@@ -23,8 +23,9 @@ import {
 } from './translation-merger.js';
 import {uploadBuffer, uploadFile, uploadJson} from '../common/r2-client.js';
 import {
-    fetchRemotePackagesJson,
+    fetchRemotePackagesJsonOrThrow,
     createEmptyPackagesJson,
+    mergePackagesSections,
     getDevices,
     getExtensions,
     addPackageVersion
@@ -541,11 +542,24 @@ export const sync = async (options = {}) => {
             logger.info(`Devices: ${registry.devices.length}`);
             logger.info(`Extensions: ${registry.extensions.length}`);
 
+            // Fetch current packages.json from R2 (for merge safety).
+            let baseRemotePackages = null;
+            try {
+                baseRemotePackages = await fetchRemotePackagesJsonOrThrow();
+            } catch (err) {
+                if (dryRun) {
+                    logger.warn(`Failed to fetch remote packages.json in dry-run: ${err.message}`);
+                    baseRemotePackages = createEmptyPackagesJson();
+                } else {
+                    throw err;
+                }
+            }
+
             // In rebuild mode start from an empty structure so all versions are
             // re-processed from source, producing a clean new-format packages.json.
-            // Otherwise fetch the current packages.json from R2 and apply incremental updates.
+            // Otherwise use the current packages.json from R2 and apply incremental updates.
             logger.section('Fetching Current Packages');
-            let currentPackages = rebuild ? createEmptyPackagesJson() : await fetchRemotePackagesJson();
+            let currentPackages = rebuild ? createEmptyPackagesJson() : baseRemotePackages;
             logger.info(`Current devices: ${getDevices(currentPackages).length}`);
             logger.info(`Current extensions: ${getExtensions(currentPackages).length}`);
 
@@ -602,7 +616,12 @@ export const sync = async (options = {}) => {
             // Upload updated packages.json
             if (!dryRun && allAdded.length > 0) {
                 logger.section('Uploading packages.json');
-                await uploadJson(currentPackages, 'packages.json');
+                const mergedPackages = mergePackagesSections(
+                    baseRemotePackages,
+                    currentPackages,
+                    ['devices', 'extensions']
+                );
+                await uploadJson(mergedPackages, 'packages.json');
                 logger.success('packages.json updated');
             }
 

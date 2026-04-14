@@ -40,7 +40,6 @@ export const createEmptyPackagesJson = () => ({
     packages: {
         devices: [],
         extensions: [],
-        libraries: [],
         toolchains: []
     }
 });
@@ -77,6 +76,52 @@ export const fetchRemotePackagesJson = async () => {
         logger.warn(`Failed to fetch remote packages.json: ${err.message}`);
         return createEmptyPackagesJson();
     }
+};
+
+/**
+ * Fetch packages.json from remote registry, throw on failure.
+ * @returns {Promise<object>} Packages JSON content
+ */
+export const fetchRemotePackagesJsonOrThrow = async () => {
+    const response = await fetch(REGISTRY_URL);
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+};
+
+/**
+ * Merge specific packages sections from updates into base packages.json.
+ * Removes deprecated libraries field if present.
+ * @param {object} base - Base packages.json
+ * @param {object} updates - Packages.json with updated sections
+ * @param {Array<string>} sections - Sections to replace (e.g., ['devices','extensions'])
+ * @returns {object} Merged packages.json
+ */
+export const mergePackagesSections = (base, updates, sections) => {
+    const basePackages = base?.packages ?? {};
+    const updatesPackages = updates?.packages ?? {};
+    const merged = {
+        ...base,
+        packages: {
+            ...basePackages
+        }
+    };
+
+    for (const section of sections) {
+        if (Object.prototype.hasOwnProperty.call(updatesPackages, section)) {
+            merged.packages[section] = updatesPackages[section];
+        } else {
+            merged.packages[section] = [];
+        }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(merged.packages, 'libraries')) {
+        const {libraries: _libraries, ...rest} = merged.packages;
+        merged.packages = rest;
+    }
+
+    return merged;
 };
 
 /**
@@ -287,8 +332,10 @@ export const updateExtensions = (packagesJson, extensions) => {
 export default {
     readLocalPackagesJson,
     fetchRemotePackagesJson,
+    fetchRemotePackagesJsonOrThrow,
     writePackagesJson,
     createEmptyPackagesJson,
+    mergePackagesSections,
     getToolchains,
     updateToolchains,
     findToolchain,

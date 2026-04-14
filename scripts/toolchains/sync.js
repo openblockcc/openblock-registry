@@ -10,10 +10,11 @@ import {fileURLToPath} from 'url';
 import logger from '../common/logger.js';
 import r2Client from '../common/r2-client.js';
 import {
-    fetchRemotePackagesJson,
+    fetchRemotePackagesJsonOrThrow,
     getToolchains,
     updateToolchains,
-    findToolchain
+    findToolchain,
+    mergePackagesSections
 } from '../common/packages-json.js';
 import {
     readToolchainsConfig,
@@ -103,7 +104,7 @@ const packageArduinoToolchain = async (item, config) => {
  * @returns {Promise<object>} Updated packages.json
  */
 const updatePackagesJsonFile = async (toAdd, addedSystems, toDelete = []) => {
-    const packagesJson = await fetchRemotePackagesJson();
+    const packagesJson = await fetchRemotePackagesJsonOrThrow();
     let toolchains = getToolchains(packagesJson);
 
     // Remove deleted items first
@@ -145,12 +146,13 @@ const updatePackagesJsonFile = async (toAdd, addedSystems, toDelete = []) => {
     }
 
     const updated = updateToolchains(packagesJson, toolchains);
+    const merged = mergePackagesSections(packagesJson, updated, ['toolchains']);
 
     // Upload packages.json directly to R2
-    await r2Client.uploadJson(updated, 'packages.json');
+    await r2Client.uploadJson(merged, 'packages.json');
     logger.success('Updated packages.json in R2');
 
-    return updated;
+    return merged;
 };
 
 /**
@@ -282,7 +284,17 @@ export const sync = async (options = {}) => {
 
     // Fetch current packages.json from R2
     logger.info('Fetching current packages.json from R2...');
-    const packagesJson = await fetchRemotePackagesJson();
+    let packagesJson = null;
+    try {
+        packagesJson = await fetchRemotePackagesJsonOrThrow();
+    } catch (err) {
+        if (dryRun) {
+            logger.warn(`Failed to fetch remote packages.json in dry-run: ${err.message}`);
+            packagesJson = {packages: {toolchains: []}};
+        } else {
+            throw err;
+        }
+    }
     const toolchains = getToolchains(packagesJson);
 
     // Fetch latest versions from Arduino package index
