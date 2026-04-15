@@ -159,7 +159,6 @@ const buildPackageEntry = (distPackageJson, type, version, repoUrl, fileInfo) =>
         'learnMore',
         'type',
         'programMode',
-        'programLanguage',
         'extensions',
         'extensionsCompatible',
         'bluetoothRequired',
