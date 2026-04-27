@@ -11,6 +11,6 @@
 | arduino-esp32-esp32 | 3.3.8 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-esp8266-esp8266 | 3.1.2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-maixduino-k210 | 0.3.11 | ✓ | ✓ | ✓ | ✓ |  |  |
-| arduino-rp2040-rp2040 | 5.5.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| arduino-rp2040-rp2040 | 5.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-sparkFun-avr | 1.1.13 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-stm32-stm32 | 2.12.0 | ✓ | ✓ | ✓ | ✓ | ✓ |  |
