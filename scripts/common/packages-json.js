@@ -211,7 +211,7 @@ export const findPackageVersion = (packages, id, version) => {
         const pkgId = p.deviceId || p.extensionId;
         return pkgId === id;
     });
-    if (!pkg) return undefined;
+    if (!pkg) return;
     return (pkg.versions || []).find(v => v.version === version);
 };
 
