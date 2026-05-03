@@ -1,34 +1,53 @@
 /**
- * GitHub tag zip downloader
- * Downloads and extracts GitHub repository tags
+ * GitHub source downloader
+ * Clones GitHub repository tags (with submodules) and creates archives
  */
 
 import fs from 'fs/promises';
 import path from 'path';
 import {createWriteStream} from 'fs';
-import {pipeline} from 'stream/promises';
 import {createHash} from 'crypto';
-import extractZipLib from 'extract-zip';
+import {spawn} from 'child_process';
 import logger from '../../common/logger.js';
 
 /**
- * Download a file from URL
- * @param {string} url - Download URL
- * @param {string} destPath - Destination file path
- * @returns {Promise<void>} Promise that resolves when download is complete
+ * Run a git command and capture its output. Resolves on exit code 0.
+ * @param {string[]} args - Arguments passed to git
+ * @param {string} [cwd] - Working directory
+ * @returns {Promise<{stdout: string, stderr: string}>} Captured output
  */
-const downloadFile = async (url, destPath) => {
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-    }
+const runGit = (args, cwd) => new Promise((resolve, reject) => {
+    const proc = spawn('git', args, {
+        cwd,
+        env: {
+            ...process.env,
+            // Never prompt for credentials in CI
+            GIT_TERMINAL_PROMPT: '0',
+            GIT_ASKPASS: 'echo'
+        },
+        stdio: ['ignore', 'pipe', 'pipe']
+    });
 
-    await pipeline(
-        response.body,
-        createWriteStream(destPath)
-    );
-};
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', chunk => {
+        stdout += chunk.toString();
+    });
+    proc.stderr.on('data', chunk => {
+        stderr += chunk.toString();
+    });
+    proc.on('error', err => {
+        reject(new Error(`Failed to spawn git: ${err.message}`));
+    });
+    proc.on('close', code => {
+        if (code === 0) {
+            resolve({stdout, stderr});
+        } else {
+            const cmd = ['git', ...args].join(' ');
+            reject(new Error(`${cmd} exited with code ${code}\n${stderr.trim()}`));
+        }
+    });
+});
 
 /**
  * Calculate SHA-256 checksum of a file
@@ -53,79 +72,58 @@ export const getFileSize = async (filePath) => {
 };
 
 /**
- * Extract zip file to a directory
- * @param {string} zipPath - Zip file path
- * @param {string} destDir - Destination directory
- * @returns {Promise<string>} Extracted directory path (first directory in zip)
- */
-const extractZip = async (zipPath, destDir) => {
-    await fs.mkdir(destDir, {recursive: true});
-
-    await extractZipLib(zipPath, {dir: destDir});
-
-    // GitHub zip files contain a single root directory named {repo}-{tag}
-    // Return the path to this directory
-    const entries = await fs.readdir(destDir);
-    if (entries.length === 0) {
-        throw new Error('Extracted zip is empty');
-    }
-
-    const extractedPath = path.join(destDir, entries[0]);
-    const stats = await fs.stat(extractedPath);
-
-    if (!stats.isDirectory()) {
-        throw new Error('Expected a directory in the zip file');
-    }
-
-    return extractedPath;
-};
-
-/**
- * Download GitHub tag zip and extract it
+ * Shallow-clone a GitHub repository at a given tag, with all submodules.
+ *
+ * GitHub-generated source archives (archive/refs/tags/<tag>.zip) do NOT include
+ * submodule contents, so we must use git clone for plugins that use submodules.
+ *
  * @param {string} owner - Repository owner
  * @param {string} repo - Repository name
  * @param {string} tag - Tag name
- * @param {string} tempDir - Temporary directory for extraction
- * @returns {Promise<{extractedPath: string, cleanup: Function}>} Extracted path and cleanup function
+ * @param {string} tempDir - Temporary directory parent
+ * @returns {Promise<{extractedPath: string, cleanup: Function}>} Cloned path and cleanup function
  */
 export const downloadAndExtractTag = async (owner, repo, tag, tempDir) => {
-    const url = `https://github.com/${owner}/${repo}/archive/refs/tags/${tag}.zip`;
-    const zipPath = path.join(tempDir, `${repo}-${tag}.zip`);
-    const extractDir = path.join(tempDir, `${repo}-${tag}`);
+    const url = `https://github.com/${owner}/${repo}.git`;
+    const clonePath = path.join(tempDir, `${repo}-${tag}`);
+
+    // Make sure the target directory does not exist (git clone refuses to clone into a non-empty dir)
+    await fs.rm(clonePath, {recursive: true, force: true}).catch(() => {});
 
     try {
-        logger.debug(`Downloading ${url}...`);
-        await downloadFile(url, zipPath);
-        
-        logger.debug(`Extracting to ${extractDir}...`);
-        const extractedPath = await extractZip(zipPath, extractDir);
-        
-        // Clean up zip file
-        await fs.unlink(zipPath);
-        
-        logger.debug(`Extracted to ${extractedPath}`);
-        
+        logger.debug(`Cloning ${url} @ ${tag} (with submodules)...`);
+        await runGit([
+            // Disable autocrlf so source files (especially firmware/binary blobs) round-trip cleanly
+            '-c', 'core.autocrlf=false',
+            '-c', 'core.symlinks=false',
+            'clone',
+            '--depth=1',
+            '--branch', tag,
+            '--single-branch',
+            '--recurse-submodules',
+            '--shallow-submodules',
+            '--quiet',
+            url,
+            clonePath
+        ]);
+
+        logger.debug(`Cloned to ${clonePath}`);
+
         return {
-            extractedPath,
+            extractedPath: clonePath,
             cleanup: async () => {
                 try {
-                    await fs.rm(extractDir, {recursive: true, force: true});
-                    logger.debug(`Cleaned up ${extractDir}`);
+                    await fs.rm(clonePath, {recursive: true, force: true});
+                    logger.debug(`Cleaned up ${clonePath}`);
                 } catch (err) {
-                    logger.warn(`Failed to cleanup ${extractDir}: ${err.message}`);
+                    logger.warn(`Failed to cleanup ${clonePath}: ${err.message}`);
                 }
             }
         };
     } catch (err) {
-        // Cleanup on error
-        try {
-            await fs.unlink(zipPath).catch(() => {});
-            await fs.rm(extractDir, {recursive: true, force: true}).catch(() => {});
-        } catch {
-            // Ignore cleanup errors
-        }
-
-        throw new Error(`Failed to download/extract ${owner}/${repo}@${tag}: ${err.message}`);
+        // Cleanup on failure
+        await fs.rm(clonePath, {recursive: true, force: true}).catch(() => {});
+        throw new Error(`Failed to clone ${owner}/${repo}@${tag}: ${err.message}`);
     }
 };
 
@@ -137,9 +135,9 @@ export const downloadAndExtractTag = async (owner, repo, tag, tempDir) => {
  */
 export const createZipArchive = async (sourceDir, outputPath) => {
     const archiver = (await import('archiver')).default;
-    
+
     await fs.mkdir(path.dirname(outputPath), {recursive: true});
-    
+
     const output = createWriteStream(outputPath);
     const archive = archiver('zip', {
         zlib: {level: 9} // Maximum compression
@@ -150,9 +148,9 @@ export const createZipArchive = async (sourceDir, outputPath) => {
             try {
                 const checksum = await calculateChecksum(outputPath);
                 const size = await getFileSize(outputPath);
-                
+
                 logger.debug(`Created zip: ${outputPath} (${size} bytes, SHA-256: ${checksum})`);
-                
+
                 resolve({
                     path: outputPath,
                     checksum,
