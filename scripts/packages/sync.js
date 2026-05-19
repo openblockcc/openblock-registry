@@ -158,9 +158,9 @@ const buildPackageEntry = (distPackageJson, type, version, repoUrl, fileInfo) =>
         'manufactor',
         'learnMore',
         'type',
+        'arch',
         'programMode',
         'extensions',
-        'extensionsCompatible',
         'bluetoothRequired',
         'serialportRequired',
         'internetConnectionRequired',
@@ -169,7 +169,7 @@ const buildPackageEntry = (distPackageJson, type, version, repoUrl, fileInfo) =>
 
     // Extension-specific fields
     const extensionFields = [
-        'supportDevice'
+        'arch'
     ];
 
     // Copy common fields

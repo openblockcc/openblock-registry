@@ -11,6 +11,24 @@ import {fileURLToPath} from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Validate the `arch` field on a device or extension manifest. Only
+// structural checks (non-empty array of non-empty strings); content is
+// intentionally unconstrained so third-party vendors can coin custom
+// identifiers and the canonical set can evolve over time.
+const validateArch = arch => {
+    const errors = [];
+    if (!Array.isArray(arch) || arch.length === 0) {
+        errors.push('openblock.arch must be a non-empty array');
+        return errors;
+    }
+    arch.forEach((item, i) => {
+        if (typeof item !== 'string' || !item) {
+            errors.push(`openblock.arch[${i}] must be a non-empty string`);
+        }
+    });
+    return errors;
+};
+
 /**
  * Load registry schema
  * @returns {Promise<object>} JSON Schema
@@ -531,15 +549,21 @@ const validatePackageJsonStructure = async (packageJson, type, repoInfo, branch)
                 errors.push(`Invalid tags: ${invalidTags.join(', ')}. Must be: ${validDeviceTags.join(', ')}`);
             }
         }
+
+        // Check arch (required; structural check only — content unconstrained)
+        errors.push(...validateArch(openblock.arch));
     } else if (type === 'extension') {
         // Check extensionId
         if (!openblock.extensionId || typeof openblock.extensionId !== 'string') {
             errors.push('Missing or invalid openblock.extensionId');
         }
 
-        // Check supportDevice
-        if (!Array.isArray(openblock.supportDevice) || openblock.supportDevice.length === 0) {
-            errors.push('openblock.supportDevice must be a non-empty array');
+        // Check arch (required; wildcards allowed)
+        errors.push(...validateArch(openblock.arch));
+
+        // Reject legacy supportDevice field outright (replaced by arch)
+        if (typeof openblock.supportDevice !== 'undefined') {
+            errors.push('openblock.supportDevice is no longer supported; use openblock.arch instead');
         }
 
         // Check tags
