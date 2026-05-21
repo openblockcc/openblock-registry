@@ -1,5 +1,6 @@
 {
     "devices": [
+        "https://github.com/openblock-plugin/arduinoRaspberryPiPico2",
         "https://github.com/openblock-plugin/arduinoMega2560",
         "https://github.com/openblock-plugin/arduinoLeonardo",
         "https://github.com/openblock-plugin/arduinoK210Maixduino",
