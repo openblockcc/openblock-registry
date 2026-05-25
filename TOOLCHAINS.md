@@ -6,7 +6,7 @@
 
 | Toolchain | Version | win32-x64 | darwin-x64 | darwin-arm64 | linux-x64 | linux-arm64 | linux-arm |
 | --------- | ------- | :-------: | :-------: | :-------: | :-------: | :-------: | :-------: |
-| arduino-arduino-avr | 1.8.7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| arduino-arduino-avr | 1.8.8 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-arduino-renesas_uno | 1.5.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-esp32-esp32 | 3.3.8 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-esp8266-esp8266 | 3.1.2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
