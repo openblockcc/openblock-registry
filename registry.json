@@ -1,5 +1,6 @@
 {
     "devices": [
+        "https://github.com/openblock-plugin/microPythonK210MaixDock",
         "https://github.com/openblock-plugin/microPythonEsp8266",
         "https://github.com/openblock-plugin/microPythonEsp32S3",
         "https://github.com/openblock-plugin/microbit",
