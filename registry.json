@@ -29,6 +29,7 @@
     ],
     "extensions": [
         "https://github.com/openblock-plugin/chineseTTS",
+        "https://github.com/openblock-plugin/apds9960",
         "https://github.com/openblock-plugin/softwareSerialport",
         "https://github.com/openblock-plugin/dht",
         "https://github.com/openblock-plugin/passiveBuzzer"

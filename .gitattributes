@@ -1,0 +1,8 @@
+# Registry manifests receive many independent PRs that each add a new entry.
+# The built-in `union` merge driver keeps the lines added by every side
+# instead of raising a conflict, so concurrent plugin submissions merge
+# cleanly. This is safe because new entries are prepended at the head of the
+# array (the comma-less last element is never touched) — see the `unshift`
+# in openblock-registry-cli's src/github/pr.js, which generates these PRs.
+registry.json   merge=union
+toolchains.json merge=union
