@@ -29,6 +29,15 @@
     ],
     "extensions": [
         "https://github.com/openblock-plugin/l298n",
+        "https://github.com/openblock-plugin/lcd",
+        "https://github.com/openblock-plugin/fourDigitClockDisplay",
+        "https://github.com/openblock-plugin/ds18b20",
+        "https://github.com/openblock-plugin/espUltrasonic",
+        "https://github.com/openblock-plugin/eightDigitDisplay",
+        "https://github.com/openblock-plugin/eitghtTimesEightMatirxDisplay",
+        "https://github.com/openblock-plugin/cooperativeScheduler",
+        "https://github.com/openblock-plugin/chineseTTS",
+        "https://github.com/openblock-plugin/apds9960",
         "https://github.com/openblock-plugin/softwareSerialport",
         "https://github.com/openblock-plugin/dht",
         "https://github.com/openblock-plugin/passiveBuzzer"
