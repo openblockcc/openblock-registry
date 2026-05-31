@@ -28,6 +28,7 @@
         "https://github.com/openblock-plugin/arduinoUnoR4Wifi"
     ],
     "extensions": [
+        "https://github.com/openblock-plugin/espUltrasonic",
         "https://github.com/openblock-plugin/eightDigitDisplay",
         "https://github.com/openblock-plugin/eitghtTimesEightMatirxDisplay",
         "https://github.com/openblock-plugin/cooperativeScheduler",
