@@ -51,6 +51,34 @@ const findNewEntries = (prList, baseList) => {
 };
 
 /**
+ * Validate the `recommended` allowlist: every recommended URL must also appear
+ * in the matching devices/extensions list. Catches typos on manual edits and
+ * dangling entries left after a package is removed.
+ * @param {object} registry - Registry.json content
+ * @returns {Array<string>} Error messages (empty if valid)
+ */
+const validateRecommended = (registry) => {
+    const errors = [];
+    const recommended = registry.recommended;
+    if (!recommended) {
+        return errors;
+    }
+
+    const checkSection = (section) => {
+        const deviceSet = new Set(registry[section] || []);
+        for (const url of recommended[section] || []) {
+            if (!deviceSet.has(url)) {
+                errors.push(`recommended.${section} references '${url}', which is not listed in ${section}`);
+            }
+        }
+    };
+
+    checkSection('devices');
+    checkSection('extensions');
+    return errors;
+};
+
+/**
  * Extract repo info from GitHub URL
  * @param {string} url - GitHub repository URL
  * @returns {object} {owner, repo}
@@ -735,6 +763,9 @@ export const validateRegistry = async (prRegistry, baseRegistry) => {
         result.errors.push(`Schema validation error: ${err.message}`);
         return result;
     }
+
+    // Referential integrity of the recommended allowlist
+    result.errors.push(...validateRecommended(prRegistry));
 
     // Get existing plugin IDs from R2
     const existingIds = await getExistingPluginIds();

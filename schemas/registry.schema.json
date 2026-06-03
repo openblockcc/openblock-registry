@@ -27,6 +27,33 @@
                 "description": "GitHub repository URL for an extension package"
             },
             "uniqueItems": true
+        },
+        "recommended": {
+            "type": "object",
+            "description": "Maintainer-owned opt-in allowlist of packages shown in the front of the library. Each URL must also appear in the matching devices/extensions list (enforced by the validator).",
+            "properties": {
+                "devices": {
+                    "type": "array",
+                    "description": "Recommended device repository URLs",
+                    "items": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+                    },
+                    "uniqueItems": true
+                },
+                "extensions": {
+                    "type": "array",
+                    "description": "Recommended extension repository URLs",
+                    "items": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+                    },
+                    "uniqueItems": true
+                }
+            },
+            "additionalProperties": false
         }
     },
     "additionalProperties": false

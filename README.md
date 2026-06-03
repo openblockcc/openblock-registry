@@ -6,6 +6,7 @@ The central index and distribution system for the OpenBlock ecosystem. This repo
 
 - [Plugin Types](#plugin-types)
 - [Publishing Plugins](#publishing-plugins)
+- [Recommended Plugins](#recommended-plugins)
 - [Version Management](#version-management)
 - [Translation](#translation)
 - [Toolchains](#toolchains)
@@ -44,6 +45,36 @@ Once merged, the system will automatically:
 - Validate plugin compliance
 - Add to `packages.json` index
 - Distribute via `registry.openblock.cc`
+
+## Recommended Plugins
+
+A curated `recommended` allowlist surfaces the most common, general-purpose boards and components at the front of the device/extension libraries, so the first-screen experience for students and teachers is not diluted as the ecosystem grows. It is an **opt-in allowlist**: a plugin is shown in front only when a maintainer explicitly selects it; everything else falls back to alphabetical order.
+
+The allowlist lives in `registry.json` under a `recommended` block of repository URLs (each URL must also appear in the matching `devices`/`extensions` list):
+
+```json
+{
+  "recommended": {
+    "devices": ["https://github.com/your-org/your-device-plugin"],
+    "extensions": ["https://github.com/your-org/your-extension-plugin"]
+  }
+}
+```
+
+Ownership stays central: the flag is set in this repository, never read from a plugin's own `package.json`. During sync it is injected into `packages.json` as a package-level `recommended` field for the client to use as a secondary sort key.
+
+**Selection criteria** (maintainer editorial judgment — there is no install/usage telemetry):
+
+- Commonly used in teaching
+- General-purpose rather than vendor-specific niche hardware
+- Broad community adoption
+
+**How a plugin gets recommended:**
+
+- **New plugins** — when accepting the registration PR, a maintainer adds the `recommended` label and merges. An automated workflow then writes the newly added URLs into the `recommended` block. Applying labels requires repository triage/write access, so contributors cannot recommend their own plugins.
+- **Existing plugins (add or revoke)** — a maintainer edits the `recommended` block directly (add or remove a URL) in a small PR, which goes through the same validation and review.
+
+**Appeal:** if you believe your plugin should be recommended, email the maintainers to request a re-evaluation. The selection criteria above are published to keep the curated list transparent.
 
 ## Version Management
 

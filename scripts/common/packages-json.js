@@ -298,6 +298,46 @@ export const addPackageVersion = (packagesJson, type, packageData) => {
 };
 
 /**
+ * Apply the registry's recommended allowlist as a package-level `recommended`
+ * display flag on every device and extension.
+ *
+ * `recommended` is registry-owned metadata, not declared by the plugin's own
+ * package.json: a package is recommended iff its `repository` URL appears in the
+ * matching allowlist. This runs as a post-processing pass decoupled from version
+ * syncing, so a recommendation toggle propagates even when no new version exists.
+ *
+ * @param {object} packagesJson - Packages JSON data
+ * @param {{devices: Set<string>, extensions: Set<string>}} allowlist - Recommended repository URLs by type
+ * @returns {{packagesJson: object, changed: boolean}} Updated packages and whether any flag changed
+ */
+export const applyRecommendedFlags = (packagesJson, allowlist) => {
+    let changed = false;
+
+    const applyToList = (list, urlSet) => list.map(pkg => {
+        const recommended = urlSet.has(pkg.repository);
+        if (Boolean(pkg.recommended) !== recommended) {
+            changed = true;
+        }
+        return {...pkg, recommended};
+    });
+
+    const devices = applyToList(getDevices(packagesJson), allowlist.devices);
+    const extensions = applyToList(getExtensions(packagesJson), allowlist.extensions);
+
+    return {
+        packagesJson: {
+            ...packagesJson,
+            packages: {
+                ...packagesJson.packages,
+                devices,
+                extensions
+            }
+        },
+        changed
+    };
+};
+
+/**
  * Update devices in packages.json
  * @param {object} packagesJson - Packages JSON data
  * @param {Array} devices - New devices array
@@ -344,6 +384,7 @@ export default {
     findPackageVersions,
     findPackageVersion,
     addPackageVersion,
+    applyRecommendedFlags,
     updateDevices,
     updateExtensions
 };

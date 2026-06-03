@@ -13,21 +13,26 @@ const REGISTRY_JSON_PATH = path.resolve(__dirname, '../../registry.json');
 
 /**
  * Read registry.json
- * @returns {Promise<{devices: string[], extensions: string[]}>} Registry config
+ * @returns {Promise<{devices: string[], extensions: string[], recommended: {devices: string[], extensions: string[]}}>} Registry config
  */
 export const readRegistryJson = async () => {
+    const emptyRecommended = {devices: [], extensions: []};
     try {
         const content = await fs.readFile(REGISTRY_JSON_PATH, 'utf-8');
         const data = JSON.parse(content);
-        
+
         return {
             devices: data.devices ?? [],
-            extensions: data.extensions ?? []
+            extensions: data.extensions ?? [],
+            recommended: {
+                devices: data.recommended?.devices ?? [],
+                extensions: data.recommended?.extensions ?? []
+            }
         };
     } catch (err) {
         if (err.code === 'ENOENT') {
             logger.warn('registry.json not found, returning empty config');
-            return {devices: [], extensions: []};
+            return {devices: [], extensions: [], recommended: emptyRecommended};
         }
         throw err;
     }

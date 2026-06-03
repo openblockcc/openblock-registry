@@ -28,7 +28,8 @@ import {
     mergePackagesSections,
     getDevices,
     getExtensions,
-    addPackageVersion
+    addPackageVersion,
+    applyRecommendedFlags
 } from '../common/packages-json.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -541,6 +542,15 @@ export const sync = async (options = {}) => {
             logger.info(`Devices: ${registry.devices.length}`);
             logger.info(`Extensions: ${registry.extensions.length}`);
 
+            // Recommended allowlist (maintainer-owned, keyed by repository URL).
+            // Applied as a package-level flag after processing, independent of
+            // version syncing.
+            const recommendedAllowlist = {
+                devices: new Set(registry.recommended.devices),
+                extensions: new Set(registry.recommended.extensions)
+            };
+            logger.info(`Recommended: ${recommendedAllowlist.devices.size} device(s), ${recommendedAllowlist.extensions.size} extension(s)`);
+
             // Fetch current packages.json from R2 (for merge safety).
             let baseRemotePackages = null;
             try {
@@ -612,8 +622,18 @@ export const sync = async (options = {}) => {
                 });
             }
 
-            // Upload updated packages.json
-            if (!dryRun && allAdded.length > 0) {
+            // Apply the recommended allowlist over every package. This runs
+            // regardless of whether new versions were added, so a recommendation
+            // toggle in registry.json propagates on the next sync.
+            const recommendedResult = applyRecommendedFlags(currentPackages, recommendedAllowlist);
+            currentPackages = recommendedResult.packagesJson;
+            if (recommendedResult.changed) {
+                logger.info('Recommended flags changed since last sync');
+            }
+
+            // Upload updated packages.json when versions were added or the
+            // recommended flags changed.
+            if (!dryRun && (allAdded.length > 0 || recommendedResult.changed)) {
                 logger.section('Uploading packages.json');
                 const mergedPackages = mergePackagesSections(
                     baseRemotePackages,

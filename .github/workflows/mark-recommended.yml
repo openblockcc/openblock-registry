@@ -1,0 +1,48 @@
+name: Mark Recommended
+
+# When a PR labelled `recommended` is merged, add the packages it introduced to
+# registry.json's recommended allowlist and push the change to the base branch.
+# Labels can only be set by users with triage/write access, so this stays a
+# maintainer-only action — fork contributors cannot self-promote.
+on:
+  pull_request_target:
+    types: [closed]
+
+jobs:
+  mark:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'recommended')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+
+      - name: Extract base (pre-merge) registry.json
+        run: git show ${{ github.event.pull_request.base.sha }}:registry.json > base-registry.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Add merged packages to recommended allowlist
+        working-directory: scripts
+        run: node recommend/mark.js --current="${{ github.workspace }}/registry.json" --base="${{ github.workspace }}/base-registry.json"
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet registry.json; then
+            echo "registry.json unchanged; nothing to push."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add registry.json
+          git commit -m "chore: mark #${{ github.event.pull_request.number }} packages as recommended"
+          git push

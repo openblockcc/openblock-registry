@@ -42,5 +42,23 @@
         "https://github.com/openblock-plugin/softwareSerialport",
         "https://github.com/openblock-plugin/dht",
         "https://github.com/openblock-plugin/passiveBuzzer"
-    ]
+    ],
+    "recommended": {
+        "devices": [
+            "https://github.com/openblock-plugin/arduinoUno",
+            "https://github.com/openblock-plugin/arduinoNano",
+            "https://github.com/openblock-plugin/arduinoMega2560",
+            "https://github.com/openblock-plugin/microbit",
+            "https://github.com/openblock-plugin/microbitV2",
+            "https://github.com/openblock-plugin/arduinoEsp32",
+            "https://github.com/openblock-plugin/microPythonEsp32",
+            "https://github.com/openblock-plugin/arduinoRaspberryPiPico",
+            "https://github.com/openblock-plugin/microPythonRaspberryPiPico",
+            "https://github.com/openblock-plugin/arduinoUnoR4Wifi"
+        ],
+        "extensions": [
+            "https://github.com/openblock-plugin/dht",
+            "https://github.com/openblock-plugin/passiveBuzzer"
+        ]
+    }
 }
