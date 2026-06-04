@@ -5,6 +5,7 @@
 
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
+import {parse} from '@babel/parser';
 import fs from 'fs/promises';
 import path from 'path';
 import {fileURLToPath} from 'url';
@@ -305,6 +306,97 @@ const validateVersionTags = async (repoInfo, version) => {
 };
 
 /**
+ * Evaluate a literal-only AST node into a plain JS value. Only data nodes
+ * (objects, arrays, strings, numbers, booleans, null) are accepted; any
+ * executable construct (function calls, member access, computed keys, template
+ * literals with expressions, etc.) throws. This is what lets us read untrusted
+ * translation files from arbitrary PRs without ever executing their code.
+ * @param {object} node - Babel AST node
+ * @returns {*} Evaluated literal value
+ */
+const evalLiteralNode = (node) => {
+    switch (node.type) {
+    case 'StringLiteral':
+    case 'NumericLiteral':
+    case 'BooleanLiteral':
+        return node.value;
+    case 'NullLiteral':
+        return null;
+    case 'UnaryExpression':
+        // Allow negative numeric literals (e.g. -1), nothing else.
+        if (node.operator === '-' && node.argument.type === 'NumericLiteral') {
+            return -node.argument.value;
+        }
+        throw new Error(`Unsupported unary operator '${node.operator}'`);
+    case 'TemplateLiteral':
+        // Only allow a plain template with no interpolation.
+        if (node.expressions.length === 0 && node.quasis.length === 1) {
+            return node.quasis[0].value.cooked;
+        }
+        throw new Error('Template literals with expressions are not allowed');
+    case 'ArrayExpression':
+        return node.elements.map(element => {
+            if (element === null) {
+                throw new Error('Array holes are not allowed');
+            }
+            return evalLiteralNode(element);
+        });
+    case 'ObjectExpression': {
+        const obj = {};
+        for (const prop of node.properties) {
+            if (prop.type !== 'ObjectProperty' || prop.computed) {
+                throw new Error('Only plain (non-computed) object properties are allowed');
+            }
+            let key;
+            if (prop.key.type === 'Identifier') {
+                key = prop.key.name;
+            } else if (prop.key.type === 'StringLiteral') {
+                key = prop.key.value;
+            } else if (prop.key.type === 'NumericLiteral') {
+                key = String(prop.key.value);
+            } else {
+                throw new Error(`Unsupported object key type '${prop.key.type}'`);
+            }
+            obj[key] = evalLiteralNode(prop.value);
+        }
+        return obj;
+    }
+    default:
+        throw new Error(`Unsupported node type '${node.type}' in translations`);
+    }
+};
+
+/**
+ * Parse a translations ES module (`export default { ... }`) into a plain object
+ * without executing it. Uses an AST + literal-only evaluator so a malicious PR
+ * can't run code on the validation runner. Returns null if the file can't be
+ * parsed or contains anything other than literal data.
+ * @param {string} source - Raw file contents
+ * @returns {object|null} Parsed translations or null
+ */
+const parseTranslationsModule = (source) => {
+    let ast;
+    try {
+        ast = parse(source, {sourceType: 'module'});
+    } catch (err) {
+        return null;
+    }
+
+    const defaultExport = ast.program.body.find(
+        node => node.type === 'ExportDefaultDeclaration'
+    );
+    if (!defaultExport) {
+        return null;
+    }
+
+    try {
+        return evalLiteralNode(defaultExport.declaration);
+    } catch (err) {
+        return null;
+    }
+};
+
+/**
  * Fetch and parse translations file
  * @param {object} repoInfo - {owner, repo}
  * @param {string} branch - Branch name
@@ -320,20 +412,7 @@ const fetchTranslationsFile = async (repoInfo, branch, translationsPath) => {
         if (!response.ok) return null;
 
         const content = await response.text();
-
-        // Parse ES module export (export default {...})
-        // Remove comments and extract the object
-        const cleanContent = content
-            .replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
-            .replace(/\/\/.*/g, ''); // Remove line comments
-
-        const match = cleanContent.match(/export\s+default\s+({[\s\S]*});?\s*$/);
-        if (!match) return null;
-
-        // Use eval to parse the object (safe in this context as we're validating user repos)
-        // eslint-disable-next-line no-eval
-        const translations = eval(`(${match[1]})`);
-        return translations;
+        return parseTranslationsModule(content);
     } catch (err) {
         return null;
     }
