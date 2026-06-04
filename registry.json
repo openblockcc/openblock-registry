@@ -59,7 +59,8 @@
         ],
         "extensions": [
             "https://github.com/openblock-plugin/dht",
-            "https://github.com/openblock-plugin/passiveBuzzer"
+            "https://github.com/openblock-plugin/passiveBuzzer",
+            "https://github.com/openblock-plugin/max6675"
         ]
     }
 }
