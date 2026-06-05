@@ -20,7 +20,8 @@
     "archiver": "^6.0.1",
     "chalk": "^5.3.0",
     "node-fetch": "^3.3.2",
-    "openblock-l10n": "^3.15.20250608130541"
+    "openblock-l10n": "^3.15.20250608130541",
+    "openblock-registry-cli": "1.0.13"
   },
   "engines": {
     "node": ">=18.0.0"

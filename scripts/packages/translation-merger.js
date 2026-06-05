@@ -5,9 +5,9 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import {execSync} from 'child_process';
 import logger from '../common/logger.js';
 import {downloadJson, uploadJson} from '../common/r2-client.js';
+import {runRegistryCli} from '../common/registry-cli.js';
 
 const TRANSLATION_CATEGORIES = ['interface', 'extensions', 'blocks'];
 const R2_TRANSLATIONS_PATH = 'translations';
@@ -284,12 +284,7 @@ export const pushToTransifex = async (translationsDir) => {
     logger.info('Pushing translations to Transifex...');
 
     try {
-        const command = `npx openblock-registry-cli i18n push --dir=${translationsDir}`;
-        
-        execSync(command, {
-            stdio: 'inherit',
-            encoding: 'utf-8'
-        });
+        runRegistryCli(['i18n', 'push', `--dir=${translationsDir}`], {stdio: 'inherit'});
 
         logger.success('Translations pushed to Transifex');
         return {success: true};
