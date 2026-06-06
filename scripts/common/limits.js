@@ -20,7 +20,7 @@ export const LIMITS = {
     // Built plugin .zip size cap, bytes.
     maxZipBytes: 50 * 1024 * 1024,
     // versions[] kept per package in packages.json (keeps the file bounded).
-    maxVersionsPerPackage: 20,
+    maxVersionsPerPackage: 40,
     // Submodule entries allowed in a single repo.
     maxSubmodules: 16
 };
