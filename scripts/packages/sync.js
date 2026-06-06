@@ -44,6 +44,7 @@ import {
 import {extractDisplay, hashIconBytes, computeDisplayHash} from '../common/display-manifest.js';
 import {readApprovedManifest} from '../common/approved-store.js';
 import {enforceDisplay, DISPLAY_ENTRY_FIELDS} from './display-enforcement.js';
+import {LIMITS} from '../common/limits.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -298,6 +299,12 @@ const stageVersionArtifact = async ({type, id, version, repoUrl, sourcePath, dis
     // before the artifact crosses the job boundary.
     const archiveFileName = `${id}-${version}.zip`;
     const zipResult = await createZipArchive(distPath, path.join(versionDir, 'plugin.zip'));
+
+    // Cap the published package size (R2.3): reject oversized artifacts before
+    // they cross the job boundary / land on R2.
+    if (zipResult.size > LIMITS.maxZipBytes) {
+        throw new Error(`Package size ${zipResult.size} exceeds limit ${LIMITS.maxZipBytes}`);
+    }
 
     // Copy extracted translations, if any, for the upload phase to merge into R2.
     let hasTranslations = false;
@@ -576,6 +583,16 @@ const buildRepository = async (type, repoUrl, currentPackages, tempDir, options,
             }
             toAdd = recon.toAdd;
             toSkip = recon.toSkip;
+        }
+
+        // Cap new versions built per repo per run (R2.3): keep the newest N
+        // (toAdd is newest-first), drop older ones so a repo with thousands of
+        // tags can't exhaust the runner.
+        if (toAdd.length > LIMITS.maxNewVersionsPerRepo) {
+            const dropped = toAdd.slice(LIMITS.maxNewVersionsPerRepo);
+            toAdd = toAdd.slice(0, LIMITS.maxNewVersionsPerRepo);
+            logger.warn(`${owner}/${repo}: ${dropped.length} version(s) over the per-repo cap ` +
+                `(${LIMITS.maxNewVersionsPerRepo}) skipped this run`);
         }
 
         logger.info(`${owner}/${repo}: ${toAdd.length} to add, ${toSkip.length} to skip`);

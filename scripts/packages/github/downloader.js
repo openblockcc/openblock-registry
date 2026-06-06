@@ -9,6 +9,7 @@ import {createWriteStream} from 'fs';
 import {createHash} from 'crypto';
 import {spawn} from 'child_process';
 import logger from '../../common/logger.js';
+import {LIMITS, parseSubmoduleUrls, validateSubmodules} from '../../common/limits.js';
 
 /**
  * Run a git command and capture its output. Resolves on exit code 0.
@@ -72,6 +73,71 @@ export const getFileSize = async (filePath) => {
 };
 
 /**
+ * Total size of a directory tree in bytes (follows no symlinks). Used to enforce
+ * the clone-size cap after fetching source + submodules.
+ * @param {string} dir - Directory path
+ * @returns {Promise<number>} Total size in bytes
+ */
+export const dirSize = async (dir) => {
+    let total = 0;
+    const entries = await fs.readdir(dir, {withFileTypes: true});
+    for (const entry of entries) {
+        if (entry.isSymbolicLink()) {
+            continue;
+        }
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            total += await dirSize(full);
+        } else if (entry.isFile()) {
+            const stats = await fs.stat(full);
+            total += stats.size;
+        }
+    }
+    return total;
+};
+
+/**
+ * Fetch a repo's declared submodules under a github.com + https policy (R2.1).
+ * Reads .gitmodules as data first and rejects the whole clone if any submodule
+ * URL is off-github / non-https or the count exceeds the cap — before any
+ * submodule content is fetched, so a malicious .gitmodules can't trigger SSRF.
+ * Only validated top-level submodules are fetched (no recursion into nested ones).
+ * @param {string} clonePath - Cloned repository path
+ * @returns {Promise<void>} Resolves once submodules are fetched (or none exist)
+ */
+const fetchSubmodulesSafely = async (clonePath) => {
+    const gitmodulesPath = path.join(clonePath, '.gitmodules');
+    let configOutput = '';
+    try {
+        const res = await runGit(['config', '--file', gitmodulesPath, '--get-regexp', '\\.url$']);
+        configOutput = res.stdout;
+    } catch {
+        // No .gitmodules (or no url entries) → nothing to fetch.
+        return;
+    }
+
+    const entries = parseSubmoduleUrls(configOutput);
+    if (entries.length === 0) {
+        return;
+    }
+
+    const {ok, errors} = validateSubmodules(entries);
+    if (!ok) {
+        throw new Error(`Submodule policy violation: ${errors.join('; ')}`);
+    }
+
+    // Lock the transport to https for the fetch itself, as defense in depth on
+    // top of the github.com host check above (blocks file://, ext::, ssh, git://).
+    await runGit([
+        '-c', 'core.autocrlf=false',
+        '-c', 'core.symlinks=false',
+        '-c', 'protocol.allow=never',
+        '-c', 'protocol.https.allow=always',
+        'submodule', 'update', '--init', '--depth=1', '--quiet'
+    ], clonePath);
+};
+
+/**
  * Shallow-clone a GitHub repository at a given tag, with all submodules.
  *
  * GitHub-generated source archives (archive/refs/tags/<tag>.zip) do NOT include
@@ -91,7 +157,9 @@ export const downloadAndExtractTag = async (owner, repo, tag, tempDir) => {
     await fs.rm(clonePath, {recursive: true, force: true}).catch(() => {});
 
     try {
-        logger.debug(`Cloning ${url} @ ${tag} (with submodules)...`);
+        // Clone WITHOUT recursing submodules: .gitmodules is attacker-controlled,
+        // so we must read+validate it as data before fetching anything (R2.1).
+        logger.debug(`Cloning ${url} @ ${tag}...`);
         await runGit([
             // Disable autocrlf so source files (especially firmware/binary blobs) round-trip cleanly
             '-c', 'core.autocrlf=false',
@@ -100,14 +168,21 @@ export const downloadAndExtractTag = async (owner, repo, tag, tempDir) => {
             '--depth=1',
             '--branch', tag,
             '--single-branch',
-            '--recurse-submodules',
-            '--shallow-submodules',
             '--quiet',
             url,
             clonePath
         ]);
 
-        logger.debug(`Cloned to ${clonePath}`);
+        // Validate + fetch submodules under the github.com/https policy (R2.1).
+        await fetchSubmodulesSafely(clonePath);
+
+        // Enforce the clone-size cap on the full tree, source + submodules (R2.3).
+        const cloneBytes = await dirSize(clonePath);
+        if (cloneBytes > LIMITS.maxCloneBytes) {
+            throw new Error(`Clone size ${cloneBytes} exceeds limit ${LIMITS.maxCloneBytes}`);
+        }
+
+        logger.debug(`Cloned to ${clonePath} (${cloneBytes} bytes)`);
 
         return {
             extractedPath: clonePath,
