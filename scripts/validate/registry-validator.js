@@ -12,6 +12,48 @@ import {fileURLToPath} from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Icon fields and the raster formats allowed for them. SVG is rejected: it can
+// carry script, and the display channel only needs raster icons. Enforcing the
+// format at this PR gate keeps unsafe icons out of the ecosystem and the frozen
+// display baseline, so the GUI never has to sanitize at render time.
+const ICON_FIELDS = ['iconURL', 'connectionIconURL', 'connectionSmallIconURL'];
+const ALLOWED_ICON_EXTENSIONS = ['.png', '.jpg', '.jpeg'];
+
+// Link fields must be plain http(s):// URLs. Forbidding other schemes blocks
+// javascript:/data: links, which become RCE when clicked under nodeIntegration.
+const LINK_FIELDS = ['helpLink', 'learnMore'];
+const SAFE_URL_SCHEME = /^https?:\/\//i;
+
+/**
+ * Validate an icon field's file extension (SVG and other non-raster formats are
+ * rejected). Only checks fields that are present non-empty strings.
+ * @param {string} field - Field name
+ * @param {string} value - Field value (relative path or URL)
+ * @returns {string|null} Error message or null
+ */
+const iconExtensionError = (field, value) => {
+    const clean = String(value).split(/[?#]/)[0].toLowerCase();
+    const dot = clean.lastIndexOf('.');
+    const ext = dot >= 0 ? clean.slice(dot) : '';
+    if (!ALLOWED_ICON_EXTENSIONS.includes(ext)) {
+        return `openblock.${field} must be a ${ALLOWED_ICON_EXTENSIONS.join('/')} image (SVG is not allowed)`;
+    }
+    return null;
+};
+
+/**
+ * Validate a link field uses an http(s):// scheme.
+ * @param {string} field - Field name
+ * @param {string} value - Field value
+ * @returns {string|null} Error message or null
+ */
+const unsafeUrlError = (field, value) => {
+    if (!SAFE_URL_SCHEME.test(String(value).trim())) {
+        return `openblock.${field} must be an http(s):// URL (javascript:/data: and other schemes are not allowed)`;
+    }
+    return null;
+};
+
 // Validate the `arch` field on a device or extension manifest. Only
 // structural checks (non-empty array of non-empty strings); content is
 // intentionally unconstrained so third-party vendors can coin custom
@@ -583,6 +625,22 @@ const validatePackageJsonStructure = async (packageJson, type, repoInfo, branch)
         const iconExists = await checkFileExists(repoInfo, branch, iconPath);
         if (!iconExists) {
             errors.push(`Icon file not found: ${openblock.iconURL}`);
+        }
+    }
+
+    // Icon format: reject SVG and other non-raster icons (any present icon field)
+    for (const field of ICON_FIELDS) {
+        if (typeof openblock[field] === 'string' && openblock[field]) {
+            const iconErr = iconExtensionError(field, openblock[field]);
+            if (iconErr) errors.push(iconErr);
+        }
+    }
+
+    // Link scheme: helpLink/learnMore must be http(s):// (no javascript:/data:)
+    for (const field of LINK_FIELDS) {
+        if (typeof openblock[field] === 'string' && openblock[field]) {
+            const linkErr = unsafeUrlError(field, openblock[field]);
+            if (linkErr) errors.push(linkErr);
         }
     }
 
