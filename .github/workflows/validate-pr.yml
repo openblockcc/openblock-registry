@@ -6,6 +6,7 @@ on:
     paths:
       - 'registry.json'
       - 'toolchains.json'
+      - 'approved/**'
     branches:
       - main
 
@@ -46,18 +47,19 @@ jobs:
       - name: Run validation
         id: validate
         working-directory: scripts
+        env:
+          # Public reads only; the token just lifts the GitHub API rate limit so
+          # the authoritative display report can resolve tags/manifests reliably.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           node validate/index.js \
             --pr-registry="${{ github.workspace }}/pr/registry.json" \
             --pr-toolchains="${{ github.workspace }}/pr/toolchains.json" \
+            --pr-approved-dir="${{ github.workspace }}/pr/approved" \
             --base-registry="${{ github.workspace }}/registry.json" \
             --base-toolchains="${{ github.workspace }}/toolchains.json" \
+            --base-approved-dir="${{ github.workspace }}/approved" \
             --output=validation-report.md
-
-          # Set output for comment
-          echo "report<<EOF" >> $GITHUB_OUTPUT
-          cat validation-report.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
           # Check if validation passed
           if grep -q "^## ❌" validation-report.md; then
@@ -72,8 +74,15 @@ jobs:
         if: always()
         with:
           script: |
-            const report = `${{ steps.validate.outputs.report }}`;
-            
+            // Read the report from disk rather than interpolating it into the
+            // script: the authoritative display report contains backticks and
+            // ${...}, which would break a template-literal substitution.
+            const fs = require('fs');
+            const reportPath = `${process.env.GITHUB_WORKSPACE}/scripts/validation-report.md`;
+            const report = fs.existsSync(reportPath)
+              ? fs.readFileSync(reportPath, 'utf8')
+              : '## ❌ PR Validation Failed\n\nValidation did not produce a report.';
+
             // Find existing comment
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,

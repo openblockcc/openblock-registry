@@ -20,7 +20,7 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
 import logger from '../common/logger.js';
-import {readRegistryJson, parseRepoUrl, isValidSemver, calculateDiff, getPackageVersions} from './calculate-diff.js';
+import {readRegistryJson, parseRepoUrl, isValidSemver, compareSemver, calculateDiff, getPackageVersions} from './calculate-diff.js';
 import {fetchTags, fetchPackageJson, createIssue} from './github/api.js';
 import {createZipArchive} from './github/downloader.js';
 import {processVersion} from './plugin-processor.js';
@@ -41,6 +41,9 @@ import {
     addPackageVersion,
     applyRecommendedFlags
 } from '../common/packages-json.js';
+import {extractDisplay, hashIconBytes, computeDisplayHash} from '../common/display-manifest.js';
+import {readApprovedManifest} from '../common/approved-store.js';
+import {enforceDisplay, DISPLAY_ENTRY_FIELDS} from './display-enforcement.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -235,7 +238,7 @@ const buildPackageEntry = (distPackageJson, type, version, repoUrl, fileInfo) =>
  * @param {string} options.artifactDir - Root artifact directory
  * @returns {Promise<object>} Serializable build record
  */
-const stageVersionArtifact = async ({type, id, version, repoUrl, distPath, translationsPath, artifactDir}) => {
+const stageVersionArtifact = async ({type, id, version, repoUrl, sourcePath, distPath, translationsPath, artifactDir}) => {
     const relDir = path.posix.join(type, id, version);
     const versionDir = path.join(artifactDir, type, id, version);
     await fs.mkdir(versionDir, {recursive: true});
@@ -245,8 +248,8 @@ const stageVersionArtifact = async ({type, id, version, repoUrl, distPath, trans
     const distPackageJson = JSON.parse(await fs.readFile(distPackageJsonPath, 'utf-8'));
     await fs.copyFile(distPackageJsonPath, path.join(versionDir, 'package.json'));
 
-    // Copy local icon files, preserving the relative paths referenced in package.json
-    // so the upload phase can reuse uploadPluginIcons against the staged directory.
+    // Copy the built (possibly compressed) icon files into the artifact so the
+    // upload phase can push them to R2 with uploadPluginIcons.
     const openblock = distPackageJson.openblock || {};
     const icons = {};
     for (const field of Object.keys(ICON_FIELDS)) {
@@ -254,17 +257,42 @@ const stageVersionArtifact = async ({type, id, version, repoUrl, distPath, trans
         if (!rel || rel.startsWith('http://') || rel.startsWith('https://')) {
             continue;
         }
-        const src = path.resolve(distPath, rel);
+        const distSrc = path.resolve(distPath, rel);
+        let bytes;
         try {
-            await fs.access(src);
+            bytes = await fs.readFile(distSrc);
         } catch {
             continue;
         }
         const dest = path.resolve(versionDir, rel);
         await fs.mkdir(path.dirname(dest), {recursive: true});
-        await fs.copyFile(src, dest);
+        await fs.writeFile(dest, bytes);
         icons[field] = rel;
     }
+
+    // Hash the SOURCE icon bytes (pre-build, straight from the cloned repo) — not
+    // the dist bytes. The build may re-encode large icons via sharp, whose output
+    // is not byte-deterministic across platforms, so dist bytes could never agree
+    // with what the PR bot and CLI hash. The source bytes are the stable, in-git
+    // artifact all three consumers can reproduce. (§5.10)
+    const iconHashes = {};
+    for (const field of Object.keys(ICON_FIELDS)) {
+        const rel = openblock[field];
+        if (!rel || rel.startsWith('http://') || rel.startsWith('https://')) {
+            continue;
+        }
+        try {
+            iconHashes[field] = hashIconBytes(await fs.readFile(path.resolve(sourcePath, rel.replace(/^\.\//, ''))));
+        } catch {
+            // Source icon unreadable: omit from the hash, matching how the bot and
+            // CLI skip unhashable icons, so the three stay consistent.
+        }
+    }
+
+    // Freeze the display fingerprint. Text fields are not transformed by the
+    // build, so reading them from the compiled manifest matches the source.
+    const display = extractDisplay(distPackageJson);
+    const displayHash = computeDisplayHash(display, iconHashes);
 
     // Build the final zip now so its bytes (and thus checksum/size) are frozen
     // before the artifact crosses the job boundary.
@@ -292,6 +320,8 @@ const stageVersionArtifact = async ({type, id, version, repoUrl, distPath, trans
         checksum: zipResult.checksum,
         size: zipResult.size,
         icons,
+        iconHashes,
+        displayHash,
         hasTranslations
     };
 };
@@ -308,10 +338,10 @@ const buildVersion = async ({type, owner, repo, id, version, repoUrl, tempDir, a
         return {success: false, error: processResult.error};
     }
 
-    const {distPath, translationsPath, cleanup} = processResult.data;
+    const {extractedPath, distPath, translationsPath, cleanup} = processResult.data;
     try {
         const record = await stageVersionArtifact({
-            type, id, version, repoUrl, distPath, translationsPath, artifactDir
+            type, id, version, repoUrl, sourcePath: extractedPath, distPath, translationsPath, artifactDir
         });
         return {success: true, record};
     } catch (err) {
@@ -322,8 +352,83 @@ const buildVersion = async ({type, owner, repo, id, version, repoUrl, tempDir, a
 };
 
 /**
+ * Find the existing top-level package entry for an id in packages.json. Used as
+ * the source of previously-approved display fields when overriding a drifted
+ * version (the live entry already holds them in publishable shape).
+ * @param {object} packagesJson - Packages.json being assembled
+ * @param {string} type - 'devices' or 'extensions'
+ * @param {string} id - Plugin id
+ * @returns {object|null} Existing package object or null
+ */
+const findCurrentEntry = (packagesJson, type, id) => {
+    const list = type === 'devices' ? getDevices(packagesJson) : getExtensions(packagesJson);
+    const idField = type === 'devices' ? 'deviceId' : 'extensionId';
+    return list.find(p => p[idField] === id) || null;
+};
+
+/**
+ * Force-rebuild the newest tag of a plugin whose overridden display can now be
+ * promoted (§5.8). The freeze is only re-evaluated when a version is rebuilt, so
+ * a baseline PR merged *after* a drifted version was synced would otherwise never
+ * take effect. The rebuild is gated on the committed baseline having actually
+ * caught up — i.e. the drifted version's stored hash now equals the approved
+ * displayHash — so we rebuild exactly once at promotion, not every sync while the
+ * baseline is still unmerged.
+ * @param {string[]} toAdd - Versions already scheduled to build (newest-first)
+ * @param {string[]} toSkip - Versions scheduled to skip
+ * @param {string[]} validTagNames - All valid semver tag names for the repo
+ * @param {object|null} currentEntry - Existing published entry for this id
+ * @param {string|undefined} approvedDisplayHash - displayHash of the committed approved baseline
+ * @returns {object} New {toAdd, toSkip, reconciledTag} (reconciledTag null if no-op)
+ */
+const planReconciliation = (toAdd, toSkip, validTagNames, currentEntry, approvedDisplayHash) => {
+    if (!currentEntry || !currentEntry.displayOverridden) {
+        return {toAdd, toSkip, reconciledTag: null};
+    }
+    // Only rebuild once the baseline matches the drifted version that was pinned
+    // at override time. Otherwise rebuilding would just re-derive the same drift
+    // and override again — pure waste.
+    if (!approvedDisplayHash || currentEntry.pendingDisplayHash !== approvedDisplayHash) {
+        return {toAdd, toSkip, reconciledTag: null};
+    }
+    const latestTag = [...validTagNames].sort((a, b) => -compareSemver(a, b))[0];
+    if (!latestTag || toAdd.includes(latestTag)) {
+        return {toAdd, toSkip, reconciledTag: null};
+    }
+    return {
+        toAdd: [latestTag, ...toAdd],
+        toSkip: toSkip.filter(v => v !== latestTag),
+        reconciledTag: latestTag
+    };
+};
+
+/**
+ * Replace the display fields of a freshly-built entry with the approved values
+ * carried by the existing published entry (strategy b). Drifted display data is
+ * discarded; code/version/download fields on `entry` are kept.
+ * @param {object} entry - Newly built package entry
+ * @param {object} currentEntry - Existing (approved) published entry
+ * @returns {object} Entry with display fields forced to the approved baseline
+ */
+const applyApprovedDisplay = (entry, currentEntry) => {
+    const result = {...entry};
+    for (const field of DISPLAY_ENTRY_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(currentEntry, field)) {
+            result[field] = currentEntry[field];
+        } else {
+            delete result[field];
+        }
+    }
+    return result;
+};
+
+/**
  * Publish a staged version to R2: upload icons + zip, merge translations, and add
  * the entry to packages.json. Executes no plugin code.
+ *
+ * Enforces the display freeze (§5.7/§5.8) before writing the entry: asserts the
+ * repo→id binding (R3.1) and, on display drift, forces the display back to the
+ * approved baseline (strategy b) instead of publishing the drifted values.
  * @param {object} record - Build record produced by stageVersionArtifact
  * @param {string} artifactDir - Root artifact directory
  * @param {object} currentPackages - Packages.json being assembled
@@ -331,7 +436,7 @@ const buildVersion = async ({type, owner, repo, id, version, repoUrl, tempDir, a
  * @returns {Promise<object>} Result with currentPackages and url
  */
 const publishVersion = async (record, artifactDir, currentPackages, globalTranslations) => {
-    const {type, id, version, repoUrl, dir, archiveFileName, checksum, size, hasTranslations} = record;
+    const {type, id, version, repoUrl, dir, archiveFileName, checksum, size, hasTranslations, displayHash} = record;
     const versionDir = path.join(artifactDir, dir);
 
     // Read the staged compiled package.json
@@ -339,13 +444,37 @@ const publishVersion = async (record, artifactDir, currentPackages, globalTransl
         await fs.readFile(path.join(versionDir, 'package.json'), 'utf-8')
     );
 
-    // Upload local icons and rewrite their fields to R2 URLs
-    const iconUpdates = await uploadPluginIcons(distPackageJson.openblock || {}, type, id, versionDir);
-    if (Object.keys(iconUpdates).length > 0) {
-        distPackageJson.openblock = {...(distPackageJson.openblock || {}), ...iconUpdates};
+    // Display-freeze decision against the committed baseline (trusted, in-repo).
+    const approved = await readApprovedManifest(id);
+    const currentEntry = findCurrentEntry(currentPackages, type, id);
+    const decision = enforceDisplay({
+        id,
+        repoUrl,
+        approved,
+        incomingDisplayHash: displayHash,
+        hasCurrentEntry: Boolean(currentEntry)
+    });
+
+    // A rejected version is not published; the caller records it as an error.
+    if (decision.action === 'reject') {
+        throw new Error(decision.reason);
+    }
+    const override = decision.action === 'override';
+    if (decision.reason) {
+        logger.warn(`${id}@${version}: ${decision.reason}`);
     }
 
-    // Upload the prebuilt zip
+    // Upload local icons (rewriting to R2 URLs) only when serving the new
+    // display. On override the approved display+icons are reused from the live
+    // entry, so the drifted icons are never uploaded.
+    if (!override) {
+        const iconUpdates = await uploadPluginIcons(distPackageJson.openblock || {}, type, id, versionDir);
+        if (Object.keys(iconUpdates).length > 0) {
+            distPackageJson.openblock = {...(distPackageJson.openblock || {}), ...iconUpdates};
+        }
+    }
+
+    // Upload the prebuilt zip (code always flows, regardless of display drift)
     const remotePath = `${type}/${id}/${version}.zip`;
     const uploadResult = await uploadFile(path.join(versionDir, 'plugin.zip'), remotePath);
 
@@ -355,12 +484,23 @@ const publishVersion = async (record, artifactDir, currentPackages, globalTransl
     }
 
     // Build entry using the deterministic checksum/size frozen at build time
-    const packageEntry = buildPackageEntry(distPackageJson, type, version, repoUrl, {
+    let packageEntry = buildPackageEntry(distPackageJson, type, version, repoUrl, {
         url: uploadResult.url,
         archiveFileName,
         checksum,
         size
     });
+
+    if (override) {
+        packageEntry = applyApprovedDisplay(packageEntry, currentEntry);
+        packageEntry.displayOverridden = true;
+        // Remember the drifted version's hash (not its content). Reconciliation
+        // compares it to the committed baseline to know — without rebuilding —
+        // whether the baseline has caught up and a promotion is now possible.
+        packageEntry.pendingDisplayHash = displayHash;
+    } else if (decision.pendingReview) {
+        packageEntry.displayPendingReview = true;
+    }
 
     return {
         currentPackages: addPackageVersion(currentPackages, type, packageEntry),
@@ -419,7 +559,24 @@ const buildRepository = async (type, repoUrl, currentPackages, tempDir, options,
         );
 
         // Calculate diff
-        const {toAdd, toSkip} = calculateDiff(validTags, currentVersions);
+        let {toAdd, toSkip} = calculateDiff(validTags, currentVersions);
+
+        // Display reconciliation (§5.8): re-check the freeze on an already-synced
+        // version whose display is still overridden, but only once the committed
+        // baseline has caught up (cheap local read of approved/{id}.json — no
+        // rebuild while the baseline PR is still unmerged). See planReconciliation.
+        const currentEntry = findCurrentEntry(currentPackages, type, id);
+        if (!options.rebuild && currentEntry && currentEntry.displayOverridden) {
+            const approved = await readApprovedManifest(id);
+            const recon = planReconciliation(
+                toAdd, toSkip, validTags.map(tag => tag.name), currentEntry, approved?.displayHash
+            );
+            if (recon.reconciledTag) {
+                logger.info(`${owner}/${repo}: baseline caught up, promoting display on ${recon.reconciledTag}`);
+            }
+            toAdd = recon.toAdd;
+            toSkip = recon.toSkip;
+        }
 
         logger.info(`${owner}/${repo}: ${toAdd.length} to add, ${toSkip.length} to skip`);
 
@@ -951,5 +1108,8 @@ export default {
     runWithConcurrency,
     buildPackageEntry,
     buildRepository,
-    generateReport
+    generateReport,
+    findCurrentEntry,
+    applyApprovedDisplay,
+    planReconciliation
 };

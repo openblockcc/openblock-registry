@@ -10,6 +10,7 @@ import path from 'path';
 import {fileURLToPath} from 'url';
 import {validateRegistry} from './registry-validator.js';
 import {validateToolchains} from './toolchains-validator.js';
+import {buildDisplayReport} from './display-report.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,8 +56,10 @@ const readJsonFile = async (filePath) => {
  * @returns {string} Markdown report
  */
 const generateReport = (results) => {
-    const {registry, toolchains} = results;
-    const hasErrors = registry.errors.length > 0 || toolchains.errors.length > 0;
+    const {registry, toolchains, display} = results;
+    const hasErrors = registry.errors.length > 0 ||
+        toolchains.errors.length > 0 ||
+        (display && display.hasError);
 
     const lines = [];
 
@@ -127,6 +130,11 @@ const generateReport = (results) => {
         }
     }
 
+    // Authoritative display report (§5): the real source of truth for reviewers.
+    if (display && display.markdown) {
+        lines.push(display.markdown);
+    }
+
     return lines.join('\n');
 };
 
@@ -143,7 +151,8 @@ const main = async () => {
 
     const results = {
         registry: {checked: false, errors: [], added: []},
-        toolchains: {checked: false, errors: [], added: []}
+        toolchains: {checked: false, errors: [], added: []},
+        display: {markdown: '', hasError: false, sections: 0}
     };
 
     // Validate registry.json if it exists in PR
@@ -154,6 +163,22 @@ const main = async () => {
     // Validate toolchains.json if it exists in PR
     if (prToolchains) {
         results.toolchains = await validateToolchains(prToolchains, baseToolchains);
+    }
+
+    // Authoritative display report for newly-registered plugins (§5.5). The
+    // approved baseline lives in the PR checkout, alongside its registry.json.
+    if (prRegistry) {
+        const prApprovedDir = options.pr_approved_dir ||
+            path.join(path.dirname(path.resolve(process.cwd(), options.pr_registry)), 'approved');
+        const baseApprovedDir = options.base_approved_dir ||
+            (options.base_registry &&
+                path.join(path.dirname(path.resolve(process.cwd(), options.base_registry)), 'approved'));
+        results.display = await buildDisplayReport({
+            prRegistry,
+            baseRegistry,
+            prApprovedDir,
+            baseApprovedDir
+        });
     }
 
     // Generate report
