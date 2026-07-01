@@ -10,6 +10,7 @@
     "sync:translations": "node translations/sync.js",
     "sync:translations:dry-run": "node translations/sync.js --dry-run",
     "validate": "node validate/index.js",
+    "test": "node test/display-manifest.test.js && node test/display-enforcement.test.js && node test/sync-override.test.js && node test/sync-reconcile.test.js && node test/limits.test.js",
     "lint": "eslint . --ext .js --fix"
   },
   "dependencies": {

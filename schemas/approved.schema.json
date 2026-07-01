@@ -1,0 +1,82 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://registry.openblock.cc/schemas/approved.schema.json",
+    "title": "OpenBlock Approved Display Baseline",
+    "description": "Schema for approved/{id}.json - the PR-reviewed, frozen display-channel baseline of a single plugin (see SECURITY_RISK_ANALYSIS.md §5).",
+    "type": "object",
+    "required": ["id", "type", "repository", "display", "icons", "displayHash"],
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "Plugin id (deviceId or extensionId). Must equal the file name stem."
+        },
+        "type": {
+            "type": "string",
+            "enum": ["devices", "extensions"],
+            "description": "Package collection this plugin belongs to."
+        },
+        "repository": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://github\\.com/[^/]+/[^/]+$",
+            "description": "Canonical repository URL. Freezes the repo->id binding (closes R3.1)."
+        },
+        "display": {
+            "type": "object",
+            "description": "Frozen human-readable display fields (normalized).",
+            "properties": {
+                "name": {"$ref": "#/definitions/message"},
+                "description": {"$ref": "#/definitions/message"},
+                "helpLink": {"type": "string"},
+                "learnMore": {"type": "string"},
+                "manufactor": {"type": "string"},
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                },
+                "author": {
+                    "oneOf": [
+                        {"type": "string"},
+                        {"type": "object"},
+                        {"type": "null"}
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "icons": {
+            "type": "object",
+            "description": "Map of icon field name to the sha256 hash of the icon bytes.",
+            "patternProperties": {
+                "^(iconURL|connectionIconURL|connectionSmallIconURL)$": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+            },
+            "additionalProperties": false
+        },
+        "displayHash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "description": "sha256 over the canonicalized {display, icons} object. The single value compared across bot report, baseline, and sync."
+        }
+    },
+    "additionalProperties": false,
+    "definitions": {
+        "message": {
+            "oneOf": [
+                {"type": "string"},
+                {
+                    "type": "object",
+                    "required": ["id", "default"],
+                    "properties": {
+                        "id": {"type": ["string", "null"]},
+                        "default": {"type": ["string", "null"]}
+                    },
+                    "additionalProperties": false
+                },
+                {"type": "null"}
+            ]
+        }
+    }
+}

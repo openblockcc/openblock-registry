@@ -6,6 +6,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import {fileURLToPath} from 'url';
 import logger from './logger.js';
+import {LIMITS} from './limits.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGES_JSON_PATH = path.resolve(__dirname, '../../packages.json');
@@ -259,7 +260,8 @@ export const addPackageVersion = (packagesJson, type, packageData) => {
         } else {
             versions.push(versionEntry);
         }
-        existing.versions = versions.sort(compareVersionDesc);
+        // Keep only the newest N versions so packages.json stays bounded (R2.3).
+        existing.versions = versions.sort(compareVersionDesc).slice(0, LIMITS.maxVersionsPerPackage);
 
         // Rebuild the top-level object from displayData (never from the old
         // existing object) to avoid VERSION_FIELDS leaking into the root.
