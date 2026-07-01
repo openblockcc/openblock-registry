@@ -28,6 +28,7 @@
         "https://github.com/openblock-plugin/arduinoUnoR4Wifi"
     ],
     "extensions": [
+        "https://github.com/openblock-plugin/max6675",
         "https://github.com/openblock-plugin/insertSourceCode",
         "https://github.com/openblock-plugin/l298n",
         "https://github.com/openblock-plugin/lcd",
@@ -58,7 +59,8 @@
         ],
         "extensions": [
             "https://github.com/openblock-plugin/dht",
-            "https://github.com/openblock-plugin/passiveBuzzer"
+            "https://github.com/openblock-plugin/passiveBuzzer",
+            "https://github.com/openblock-plugin/max6675"
         ]
     }
 }

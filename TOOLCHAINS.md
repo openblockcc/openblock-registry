@@ -7,10 +7,10 @@
 | Toolchain | Version | win32-x64 | darwin-x64 | darwin-arm64 | linux-x64 | linux-arm64 | linux-arm |
 | --------- | ------- | :-------: | :-------: | :-------: | :-------: | :-------: | :-------: |
 | arduino-arduino-avr | 1.8.8 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| arduino-arduino-renesas_uno | 1.5.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| arduino-esp32-esp32 | 3.3.8 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| arduino-arduino-renesas_uno | 1.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| arduino-esp32-esp32 | 3.3.10 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-esp8266-esp8266 | 3.1.2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-maixduino-k210 | 0.3.11 | ✓ | ✓ | ✓ | ✓ |  |  |
-| arduino-rp2040-rp2040 | 5.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| arduino-rp2040-rp2040 | 5.6.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-sparkFun-avr | 1.1.13 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-stm32-stm32 | 2.12.0 | ✓ | ✓ | ✓ | ✓ | ✓ |  |
