@@ -187,19 +187,20 @@ const inspectPluginAtTag = async (repoUrl) => {
  * @param {object|null} prApproved - approved/{id}.json from the PR (or null)
  * @returns {{markdown: string, error: boolean}} Section + whether it blocks merge
  */
-const renderSection = (info, prApproved) => {
+const renderSection = (info, prApproved, isNewRepo) => {
     const lines = [];
     let error = false;
 
     if (!info.ok) {
         lines.push(`#### ❌ ${info.repoUrl}`);
         lines.push('');
-        lines.push(`Could not build an authoritative report: ${info.error}`);
+        lines.push(`Could not read this plugin: ${info.error}`);
         lines.push('');
         return {markdown: lines.join('\n'), error: true};
     }
 
-    lines.push(`#### ${info.id || info.repoUrl} — \`${info.owner}/${info.repo}@${info.tag}\``);
+    const kind = isNewRepo ? '🆕 New plugin' : '✏️ Display update';
+    lines.push(`#### ${kind} — ${info.id || info.repoUrl} \`${info.owner}/${info.repo}@${info.tag}\``);
     lines.push('');
     lines.push('| Field | Value at published tag (verified) |');
     lines.push('| ----- | --------------------------------- |');
@@ -211,34 +212,45 @@ const renderSection = (info, prApproved) => {
     lines.push(`| helpLink | ${renderMessage(info.display.helpLink)} |`);
     lines.push(`| learnMore | ${renderMessage(info.display.learnMore)} |`);
     lines.push(`| tags | ${Array.isArray(info.display.tags) ? info.display.tags.join(', ') : '—'} |`);
-    lines.push(`| displayHash | \`${info.displayHash}\` |`);
     lines.push('');
 
     // Icons rendered straight from the tag so the reviewer sees the real bytes
-    // (GitHub's camo proxy renders raw URLs in comments).
+    // (GitHub's camo proxy renders raw URLs in comments). Each icon gets its own
+    // section so it stands out instead of being buried in the text.
+    const nameValue = info.display.name;
+    const altText = typeof nameValue === 'string'
+        ? nameValue
+        : (nameValue && typeof nameValue === 'object' ? (nameValue.default || info.id) : info.id) || 'Plugin Icon';
     for (const preview of info.previews) {
+        lines.push(`### Plugin Icon \`${preview.field}\``);
+        lines.push('');
         if (preview.hashed) {
-            lines.push(`Icon \`${preview.field}\` (from tag): <img src="${preview.url}" height="48" />`);
+            lines.push('<kbd>');
+            lines.push(`  <img src="${preview.url}" alt="${altText}" width="100" />`);
+            lines.push('</kbd>');
         } else {
-            lines.push(`Icon \`${preview.field}\`: ${preview.url} (not hashable — external/data URI)`);
+            lines.push(`${preview.url} (not hashable — external/data URI)`);
         }
+        lines.push('');
     }
-    lines.push('');
 
-    // Baseline reconciliation: the committed approved/{id}.json must equal reality.
+    // The values above are extracted straight from the plugin at its published
+    // tag — they are what reviewers should judge, not the PR description. The
+    // check below confirms this PR agrees with the plugin (or flags a mismatch).
     if (prApproved) {
         if (prApproved.repository && prApproved.repository !== info.repoUrl) {
-            lines.push(`> ❌ Approved baseline binds id \`${info.id}\` to \`${prApproved.repository}\`, but this PR registers \`${info.repoUrl}\`.`);
+            lines.push(`> ❌ This plugin id already belongs to ${prApproved.repository}, but this PR points it at ${info.repoUrl}. Do not approve.`);
             error = true;
-        }
-        if (prApproved.displayHash === info.displayHash) {
-            lines.push(`> ✅ Committed \`approved/${info.id}.json\` matches the tag (displayHash verified). Merging freezes this display.`);
+        } else if (prApproved.displayHash === info.displayHash) {
+            lines.push(isNewRepo
+                ? '> ✅ Verified against the plugin. Approving adds it with the display shown above.'
+                : '> ✅ Verified against the plugin. After merge and the next sync, users will see the updated display above.');
         } else {
-            lines.push(`> ❌ Committed \`approved/${info.id}.json\` displayHash \`${prApproved.displayHash}\` does **not** match the tag's \`${info.displayHash}\`. The baseline you are committing does not reflect the plugin at its published tag.`);
+            lines.push('> ❌ This PR asks to publish a different display than the plugin actually shows at this tag. Do not approve until they match.');
             error = true;
         }
     } else {
-        lines.push(`> ⚠️ No \`approved/${info.id}.json\` in this PR. Code will sync, but the display channel stays unfrozen until a baseline is committed. To freeze, add the file with displayHash \`${info.displayHash}\`.`);
+        lines.push('> ⚠️ This PR does not include a reviewed display, so the values above will not be shown to users yet. If that is unintended, re-run the CLI publish.');
     }
     lines.push('');
 
@@ -317,6 +329,7 @@ const collectChangedApprovedRepos = async (prApprovedDir, baseApprovedDir) => {
  */
 export const buildDisplayReport = async ({prRegistry, baseRegistry, prApprovedDir, baseApprovedDir}) => {
     const newRepos = collectNewRepoUrls(prRegistry, baseRegistry);
+    const newRepoSet = new Set(newRepos);
     const changedApprovedRepos = await collectChangedApprovedRepos(prApprovedDir, baseApprovedDir);
     const repoUrls = [...new Set([...newRepos, ...changedApprovedRepos])];
 
@@ -325,8 +338,6 @@ export const buildDisplayReport = async ({prRegistry, baseRegistry, prApprovedDi
     }
 
     const lines = ['### 🤖 Authoritative Display Report', ''];
-    lines.push('Rendered by the registry from each plugin **at its published git tag**. Review these values — not the PR description.');
-    lines.push('');
 
     let hasError = false;
     let sections = 0;
@@ -338,7 +349,7 @@ export const buildDisplayReport = async ({prRegistry, baseRegistry, prApprovedDi
         if (info.ok && info.id) {
             prApproved = await readApprovedManifest(info.id, prApprovedDir);
         }
-        const {markdown, error} = renderSection(info, prApproved);
+        const {markdown, error} = renderSection(info, prApproved, newRepoSet.has(repoUrl));
         lines.push(markdown);
         hasError = hasError || error;
         sections += 1;
