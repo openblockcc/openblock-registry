@@ -1,0 +1,24 @@
+{
+    "id": "max30102",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/max30102",
+    "display": {
+        "name": {
+            "id": "max30102.name",
+            "default": "MAX30102"
+        },
+        "description": {
+            "id": "max30102.description",
+            "default": "Blood oxygen and heart rate detection module based on MAX30102."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "sensor"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:bc4a1abf3642d62dfd71b162330af9e996d78e7e45465d639e624f7e17e237c1"
+    },
+    "displayHash": "sha256:285ca43b6087112e4af668de13c746d5f9e70c09e3e78fe6e3df8d6091324a98"
+}
