@@ -34,69 +34,109 @@ concurrency:
   group: sync-packages-${{ github.ref }}
   cancel-in-progress: false
 
+# The pipeline is split into two jobs so that untrusted plugin code never runs in
+# a job that holds the R2 credentials:
+#   build  - clones + builds untrusted plugins. NO R2 secrets. If plugin code
+#            executes during build, there is nothing here to steal.
+#   upload - consumes the build artifact and publishes to R2. Holds the R2
+#            credentials but never runs plugin code.
 jobs:
-  sync:
-    name: Sync Packages to R2
+  build:
+    name: Build Packages (no secrets)
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: read
-      issues: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
       - name: Install dependencies
         run: |
           cd scripts
           npm ci
-      
-      - name: Run sync (Dry Run)
-        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+
+      - name: Build packages
         working-directory: scripts
+        # Only GITHUB_TOKEN (default, read-only, repo-scoped) for GitHub API rate
+        # limits. Deliberately NO R2 credentials, no Transifex token, no
+        # PLUGIN_GITHUB_TOKEN: this job runs untrusted plugin code.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PLUGIN_GITHUB_TOKEN: ${{ secrets.PLUGIN_GITHUB_TOKEN }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
-          TX_TOKEN: ${{ secrets.TX_TOKEN }}
-        run: |
-          node packages/sync.js --dry-run --concurrency=${{ inputs.concurrency || 3 }} ${{ inputs.skip_transifex && '--skip-transifex' || '' }} ${{ inputs.rebuild && '--rebuild' || '' }} 2>&1 | tee sync-output.txt
-
-          # Extract markdown report (everything after "## Package Sync Report")
-          if grep -q "## Package Sync Report" sync-output.txt; then
-            sed -n '/## Package Sync Report/,$p' sync-output.txt >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## Dry Run Results" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            cat sync-output.txt >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Run sync (Production)
-        if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
-        working-directory: scripts
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PLUGIN_GITHUB_TOKEN: ${{ secrets.PLUGIN_GITHUB_TOKEN }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
-          TX_TOKEN: ${{ secrets.TX_TOKEN }}
         run: |
           CONCURRENCY=${{ github.event_name == 'workflow_dispatch' && inputs.concurrency || 3 }}
-          node packages/sync.js --concurrency=$CONCURRENCY ${{ inputs.skip_transifex && '--skip-transifex' || '' }} ${{ inputs.rebuild && '--rebuild' || '' }} 2>&1 | tee sync-output.txt
+          node packages/sync.js --phase=build \
+            --out="$RUNNER_TEMP/build-artifact" \
+            --concurrency=$CONCURRENCY \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }} \
+            ${{ inputs.rebuild && '--rebuild' || '' }} 2>&1 | tee build-output.txt
+
+          # On dry run there is no upload job, so surface the report here.
+          if grep -q "## Package Sync Report" build-output.txt; then
+            sed -n '/## Package Sync Report/,$p' build-output.txt >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact
+          path: ${{ runner.temp }}/build-artifact
+          retention-days: 1
+          include-hidden-files: true
+
+  upload:
+    name: Upload Packages to R2
+    needs: build
+    # Skip publishing on dry runs; the build job already produced the report.
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          cd scripts
+          npm ci
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+          path: ${{ runner.temp }}/build-artifact
+
+      - name: Upload packages to R2
+        working-directory: scripts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLUGIN_GITHUB_TOKEN: ${{ secrets.PLUGIN_GITHUB_TOKEN }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+          TX_TOKEN: ${{ secrets.TX_TOKEN }}
+        run: |
+          node packages/sync.js --phase=upload \
+            --in="$RUNNER_TEMP/build-artifact" \
+            ${{ inputs.skip_transifex && '--skip-transifex' || '' }} \
+            ${{ inputs.rebuild && '--rebuild' || '' }} 2>&1 | tee sync-output.txt
 
           # Extract markdown report (everything after "## Package Sync Report")
           if grep -q "## Package Sync Report" sync-output.txt; then
@@ -107,4 +147,3 @@ jobs:
             cat sync-output.txt >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           fi
-

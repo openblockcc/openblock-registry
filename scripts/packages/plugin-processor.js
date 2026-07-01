@@ -7,23 +7,24 @@ import {execSync} from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import logger from '../common/logger.js';
+import {runRegistryCli} from '../common/registry-cli.js';
 
 /**
- * Check if openblock-registry-cli is available
+ * Check if the trusted openblock-registry-cli is available
  * @returns {Promise<boolean>} True if CLI is available
  */
 const checkCliAvailable = async () => {
     try {
-        execSync('npx openblock-registry-cli --version', {stdio: 'pipe'});
+        runRegistryCli(['--version']);
         return true;
     } catch (err) {
-        logger.error('openblock-registry-cli not found. Please install it globally or locally.');
+        logger.error(`openblock-registry-cli not found in the scripts dependency tree: ${err.message}`);
         return false;
     }
 };
 
 /**
- * Run a command in a directory
+ * Run a shell command in a directory (used for npm).
  * @param {string} command - Command to run
  * @param {string} cwd - Working directory
  * @returns {Promise<object>} Command execution result with success, stdout, stderr, and error properties
@@ -35,6 +36,27 @@ const runCommand = async (command, cwd) => {
             encoding: 'utf-8',
             stdio: 'pipe'
         });
+        return {success: true, stdout};
+    } catch (err) {
+        return {
+            success: false,
+            stdout: err.stdout?.toString() || '',
+            stderr: err.stderr?.toString() || '',
+            error: err.message
+        };
+    }
+};
+
+/**
+ * Run openblock-registry-cli against a (possibly untrusted) plugin directory.
+ * See common/registry-cli.js for the trusted-path launcher.
+ * @param {string[]} args - CLI arguments
+ * @param {string} cwd - Plugin directory
+ * @returns {object} Result with success, stdout, stderr, and error properties
+ */
+const runCli = (args, cwd) => {
+    try {
+        const stdout = runRegistryCli(args, {cwd});
         return {success: true, stdout};
     } catch (err) {
         return {
@@ -134,7 +156,7 @@ export const buildPlugin = async (pluginDir) => {
 
         // Run build command
         logger.debug('Running openblock-registry-cli build...');
-        const buildResult = await runCommand('npx openblock-registry-cli build', pluginDir);
+        const buildResult = runCli(['build'], pluginDir);
 
         if (!buildResult.success) {
             return {
@@ -176,7 +198,7 @@ export const extractTranslations = async (pluginDir) => {
 
     try {
         // Run i18n extract command
-        const extractResult = await runCommand('npx openblock-registry-cli i18n extract', pluginDir);
+        const extractResult = runCli(['i18n', 'extract'], pluginDir);
 
         if (!extractResult.success) {
             // i18n extraction is optional, log warning but don't fail
