@@ -192,14 +192,14 @@ const renderSection = (info, prApproved, isNewRepo) => {
     let error = false;
 
     if (!info.ok) {
-        lines.push(`#### ❌ ${info.repoUrl}`);
+        lines.push(`#### Could not read — ${info.repoUrl}`);
         lines.push('');
         lines.push(`Could not read this plugin: ${info.error}`);
         lines.push('');
         return {markdown: lines.join('\n'), error: true};
     }
 
-    const kind = isNewRepo ? '🆕 New plugin' : '✏️ Display update';
+    const kind = isNewRepo ? 'New plugin' : 'Display update';
     lines.push(`#### ${kind} — ${info.id || info.repoUrl} \`${info.owner}/${info.repo}@${info.tag}\``);
     lines.push('');
     lines.push('| Field | Value at published tag (verified) |');
@@ -337,7 +337,7 @@ export const buildDisplayReport = async ({prRegistry, baseRegistry, prApprovedDi
         return {markdown: '', hasError: false, sections: 0};
     }
 
-    const lines = ['### 🤖 Authoritative Display Report', ''];
+    const lines = ['### Authoritative Display Report', ''];
 
     let hasError = false;
     let sections = 0;
