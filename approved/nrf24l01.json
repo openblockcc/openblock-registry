@@ -1,0 +1,21 @@
+{
+    "id": "nrf24l01",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/nrf24l01",
+    "display": {
+        "name": "NRF24l01",
+        "description": {
+            "id": "nrf24l01.description",
+            "default": "2.4G RF transceiver module."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "communication"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:4d4120a3378e619ff3dec60d8ec2a1dfa0926dffe2534d6b367787ecb86d8a58"
+    },
+    "displayHash": "sha256:3d9896d58d505c760eb62e96ce327d56e092e3ad357c47cb1c562b59e527ff9f"
+}
