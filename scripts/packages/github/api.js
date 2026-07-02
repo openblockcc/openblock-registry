@@ -24,8 +24,11 @@ const githubRequest = async (url, options = {}) => {
         ...options.headers
     };
 
-    if (GITHUB_TOKEN) {
-        headers.Authorization = `token ${GITHUB_TOKEN}`;
+    // Default to the read-only GITHUB_TOKEN; callers touching third-party repos
+    // can pass their own token (e.g. PLUGIN_GITHUB_TOKEN) via options.token.
+    const token = options.token || GITHUB_TOKEN;
+    if (token) {
+        headers.Authorization = `token ${token}`;
     }
 
     const response = await fetch(url, {
@@ -128,6 +131,48 @@ export const fetchPackageJson = async (owner, repo, tag) => {
 };
 
 /**
+ * Find an open issue in a repository whose body contains a given marker string.
+ * Used to deduplicate auto-filed sync-error issues: the marker encodes a stable
+ * key (repo@version) so a still-unfixed failure maps to a single open issue
+ * instead of a fresh duplicate every sync run.
+ *
+ * Scans open issues (skipping pull requests) rather than filtering by label,
+ * because the bot lacks triage permission on third-party repos and cannot rely
+ * on labels being applied there. Authenticates with PLUGIN_GITHUB_TOKEN, the same
+ * token used to create the issues.
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} marker - Marker substring to look for in issue bodies
+ * @returns {Promise<{number: number, url: string}|null>} Matching issue, or null
+ */
+export const findOpenIssueByMarker = async (owner, repo, marker) => {
+    let page = 1;
+    const perPage = 100;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+        const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/issues` +
+            `?state=open&per_page=${perPage}&page=${page}`;
+        const data = await githubRequest(url, {token: PLUGIN_GITHUB_TOKEN});
+
+        for (const item of data) {
+            // The issues endpoint also returns pull requests; skip those.
+            if (item.pull_request) {
+                continue;
+            }
+            if (item.body && item.body.includes(marker)) {
+                return {number: item.number, url: item.html_url};
+            }
+        }
+
+        if (data.length < perPage) {
+            return null;
+        }
+        page++;
+    }
+};
+
+/**
  * Create an issue in a GitHub repository
  * Uses PLUGIN_GITHUB_TOKEN for authentication to third-party repos
  * @param {string} owner - Repository owner
@@ -185,5 +230,6 @@ export default {
     parseRepoUrl,
     fetchTags,
     fetchPackageJson,
+    findOpenIssueByMarker,
     createIssue
 };

@@ -21,7 +21,7 @@ import os from 'os';
 import fs from 'fs/promises';
 import logger from '../common/logger.js';
 import {readRegistryJson, parseRepoUrl, isValidSemver, compareSemver, calculateDiff, getPackageVersions} from './calculate-diff.js';
-import {fetchTags, fetchPackageJson, createIssue} from './github/api.js';
+import {fetchTags, fetchPackageJson, findOpenIssueByMarker, createIssue} from './github/api.js';
 import {createZipArchive} from './github/downloader.js';
 import {processVersion} from './plugin-processor.js';
 import {
@@ -729,8 +729,22 @@ const createErrorIssues = async (errors, workflowRunUrl) => {
         try {
             const {owner, repo} = parseRepoUrl(`https://github.com/${error.repo}`);
 
+            // Stable dedup key: one open issue per repo@version failure. Kept in a
+            // hidden HTML comment so re-runs of the same unfixed failure find the
+            // existing issue instead of filing a duplicate every day. The key omits
+            // the error text on purpose, so a reworded error for the same version
+            // is still treated as the same problem.
+            const marker = `<!-- openblock-registry-sync-error: ${error.repo}@${error.version} -->`;
+
+            const existing = await findOpenIssueByMarker(owner, repo, marker);
+            if (existing) {
+                logger.info(`Sync-error issue already open for ${error.repo}@${error.version} (#${existing.number}), skipping`);
+                continue;
+            }
+
             const title = `[OpenBlock Registry] Sync failed for version ${error.version}`;
-            const body = `## ❌ OpenBlock Registry Sync Failed
+            const body = `${marker}
+## ❌ OpenBlock Registry Sync Failed
 
 The automatic sync process encountered an error while processing this repository.
 
