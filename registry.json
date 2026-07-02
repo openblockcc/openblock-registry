@@ -28,6 +28,7 @@
         "https://github.com/openblock-plugin/arduinoUnoR4Wifi"
     ],
     "extensions": [
+        "https://github.com/openblock-plugin/sdCard",
         "https://github.com/openblock-plugin/ps2",
         "https://github.com/openblock-plugin/pca9685",
         "https://github.com/openblock-plugin/mpu6050",
