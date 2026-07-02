@@ -28,6 +28,7 @@
         "https://github.com/openblock-plugin/arduinoUnoR4Wifi"
     ],
     "extensions": [
+        "https://github.com/openblock-plugin/u8g2",
         "https://github.com/openblock-plugin/tcs3200",
         "https://github.com/openblock-plugin/rgbLedStrip",
         "https://github.com/openblock-plugin/shiftDigitDisplay",
