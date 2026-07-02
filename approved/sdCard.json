@@ -1,0 +1,24 @@
+{
+    "id": "sdCard",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/sdCard",
+    "display": {
+        "name": {
+            "id": "sdCard.name",
+            "default": "SD Card Module"
+        },
+        "description": {
+            "id": "sdCard.description",
+            "default": "Save or read your data in SD card."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "other"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:34235a2db16791ad7c03c440e1ee13e407d05cd1ec778444de229e0935d87bcf"
+    },
+    "displayHash": "sha256:6df8e03a0d7924974539d18c2ed5505f9627edd8bfc31130e504f8825299a9da"
+}

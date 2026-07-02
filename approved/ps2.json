@@ -1,0 +1,24 @@
+{
+    "id": "ps2",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/ps2",
+    "display": {
+        "name": {
+            "id": "ps2.name",
+            "default": "PS2 Remote Control"
+        },
+        "description": {
+            "id": "ps2.description",
+            "default": "PS2 wireless remote controller with 4 signal lines."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "communication"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:1f81c80eafed888ef6b993637589f4ca2ad70ce4c09bb3c96625982aa558a9b0"
+    },
+    "displayHash": "sha256:be69b4b6a64c0f8e9eaeef4da9e6835334de95247a6028fe90957102f89049a2"
+}
