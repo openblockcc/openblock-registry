@@ -1,0 +1,21 @@
+{
+    "id": "oled",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/oled",
+    "display": {
+        "name": "OLED",
+        "description": {
+            "id": "oled.description",
+            "default": "I2C oled display based on SSD1306 drivers."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "display"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:664b798c668dcdb79d4649e9c2ca111bc814ec1c76944543764a5c59b9c410de"
+    },
+    "displayHash": "sha256:3a7649a6a899c99e440a8032cbc0ceb7c502a6919f21ec7d4158b0b56e997aa3"
+}
