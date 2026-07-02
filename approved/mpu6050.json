@@ -1,0 +1,24 @@
+{
+    "id": "mpu6050",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/mpu6050",
+    "display": {
+        "name": {
+            "id": "mpu6050.name",
+            "default": "MPU6050 Sensor"
+        },
+        "description": {
+            "id": "mpu6050.description",
+            "default": "6-axis attitude sensor module based on MPU6050."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "sensor"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:bf9e75600d77ca6aa6140f1cbda5e0d44b10f6823f96782667d2b4945f254b09"
+    },
+    "displayHash": "sha256:89b8036809c8655a2c8ce5c8691847e9e0c470c9fb0c058a02290ff52a8b1a16"
+}

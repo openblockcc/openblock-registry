@@ -28,6 +28,7 @@
         "https://github.com/openblock-plugin/arduinoUnoR4Wifi"
     ],
     "extensions": [
+        "https://github.com/openblock-plugin/mpu6050",
         "https://github.com/openblock-plugin/nrf24l01",
         "https://github.com/openblock-plugin/moreComments",
         "https://github.com/openblock-plugin/mfrc522",
