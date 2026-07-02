@@ -1,0 +1,24 @@
+{
+    "id": "moreComments",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/moreComments",
+    "display": {
+        "name": {
+            "id": "moreComments.name",
+            "default": "More Comments"
+        },
+        "description": {
+            "id": "moreComments.description",
+            "default": "Allows you to add comments in the form of blocks to increase program readability."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "other"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:fdb72b374dcc1d8b331a8613f48c7fede2617ddcce5eff6550703974c2abd392"
+    },
+    "displayHash": "sha256:fd582a8ff34ebb0b308bb875393ef9358e265d470871c75a45327d9ab34d41ce"
+}
