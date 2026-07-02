@@ -1,0 +1,24 @@
+{
+    "id": "rgbLedStrip",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/rgbLedStrip",
+    "display": {
+        "name": {
+            "id": "rgbLedStrip.name",
+            "default": "RGB LED Strip"
+        },
+        "description": {
+            "id": "rgbLedStrip.description",
+            "default": "Single-wire-based RGB LED pixels and strip."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "display"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:f63518e5446abf96e211ccc8b42104edcb3d664567e4d62a2fcf79f21733f391"
+    },
+    "displayHash": "sha256:ae74afa065d42d7e0311744d891b44a3eb0bfab04cce801abfa25d84fd07dc84"
+}
