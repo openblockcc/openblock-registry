@@ -72,7 +72,8 @@
             "https://github.com/openblock-plugin/nrf24l01",
             "https://github.com/openblock-plugin/mpu6050",
             "https://github.com/openblock-plugin/pca9685",
-            "https://github.com/openblock-plugin/ps2"
+            "https://github.com/openblock-plugin/ps2",
+            "https://github.com/openblock-plugin/sdCard"
         ]
     }
 }
