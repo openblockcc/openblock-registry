@@ -68,7 +68,8 @@
             "https://github.com/openblock-plugin/passiveBuzzer",
             "https://github.com/openblock-plugin/max6675",
             "https://github.com/openblock-plugin/nrf24l01",
-            "https://github.com/openblock-plugin/mpu6050"
+            "https://github.com/openblock-plugin/mpu6050",
+            "https://github.com/openblock-plugin/pca9685"
         ]
     }
 }
