@@ -1,0 +1,21 @@
+{
+    "id": "u8g2",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/u8g2",
+    "display": {
+        "name": "U8G2",
+        "description": {
+            "id": "u8g2.description",
+            "default": "U8g2 is a general graphics library for multiple screens, which is suitable for LCD (base on ST7920) or OLED (base on SSD1306) screens."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "display"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:a337c50e54b0694b7ed18f4db657fe4a07ba60489d08276aeae62d0d7b784bbc"
+    },
+    "displayHash": "sha256:5923d4c7ebab6f24078d9f51be6a0a1ab71c37b8b35d36ccdddd026423217db3"
+}
