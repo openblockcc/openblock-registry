@@ -1,0 +1,24 @@
+{
+    "id": "sharpIR",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/sharpIR",
+    "display": {
+        "name": {
+            "id": "sharpIR.name",
+            "default": "Sharp IR Sensor"
+        },
+        "description": {
+            "id": "sharpIR.description",
+            "default": "Infrared distance sensor based on the principle of triangle ranging."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "sensor"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:c58f0bbe180e41f148f37deb885ad20b1ea8f0f2a459a9a39af776e7fea6271a"
+    },
+    "displayHash": "sha256:c43587c891a6394bc28fd3ec24ff5e394eb640bd0cc744f26bb4bb292c5c41fe"
+}

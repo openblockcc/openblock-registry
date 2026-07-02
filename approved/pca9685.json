@@ -1,0 +1,24 @@
+{
+    "id": "pca9685",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/pca9685",
+    "display": {
+        "name": {
+            "id": "pca9685.name",
+            "default": "PCA9685 Module"
+        },
+        "description": {
+            "id": "pca9685.description",
+            "default": "The 16 channel PWM driver module based on PCA9685, uses IIC bus for communication."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "other"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:72e97c1b629161c1f56786694bf1934ea427143b0e325746d90ec146bb2e777c"
+    },
+    "displayHash": "sha256:34e3dfa805dc497df2b4f870930226cc3c2e3f0d2d1da25c691f9004f8f15813"
+}

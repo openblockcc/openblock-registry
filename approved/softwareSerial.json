@@ -1,0 +1,24 @@
+{
+    "id": "softwareSerial",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/softwareSerialport",
+    "display": {
+        "name": {
+            "id": "softwareSerial.name",
+            "default": "Software Serial"
+        },
+        "description": {
+            "id": "softwareSerial.description",
+            "default": "Allow serial communication on other digital pins of the Arduino."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "other"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:a1f68eb17f0cebc1c8ad2d4281e552a064bc38f90adc64d56b3830027ad31f60"
+    },
+    "displayHash": "sha256:4464f5cc8c431327d8617fc83370e7d38c0330bab13e2ee74ef47190e267da47"
+}
