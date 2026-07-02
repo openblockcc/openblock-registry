@@ -1,0 +1,24 @@
+{
+    "id": "shiftDigitDisplay",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/shiftDigitDisplay",
+    "display": {
+        "name": {
+            "id": "shiftDigitDisplay.name",
+            "default": "Shift Digit Display"
+        },
+        "description": {
+            "id": "shiftDigitDisplay.description",
+            "default": "Digital dislapy based on 74HC595 with dynamic scanning display."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "display"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:b49c09adba599420a00cd94000cc6dbee5b643f6ec705e16e142c8a1054490a1"
+    },
+    "displayHash": "sha256:fc96bd84aedc3006e8091ed99f9357531229fd12324c25a1d4793df00ca2368b"
+}
