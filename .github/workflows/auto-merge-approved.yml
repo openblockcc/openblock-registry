@@ -1,0 +1,145 @@
+name: Auto-merge approved PR
+
+# When a maintainer approves a registry PR, merge it automatically so that the
+# common "each PR just prepends a line to registry.json" case never needs manual
+# conflict resolution. The merge runs on the runner, where git DOES honour the
+# `merge=union` driver in .gitattributes (GitHub's web Merge button does not),
+# so concurrent submissions union cleanly.
+#
+# SECURITY: this runs in the base-repo context with write access, so — like
+# validate-pr.yml — it must NEVER execute code from the PR. The PR is only ever
+# read as data, the merge is restricted to data files (registry.json /
+# toolchains.json / approved/**), and validation is re-run authoritatively here
+# rather than trusting the approver or a prior run.
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+# Serialize all auto-merges so two approvals can't race-push main.
+concurrency:
+  group: registry-automerge-main
+  cancel-in-progress: false
+
+jobs:
+  automerge:
+    if: >
+      github.event.review.state == 'approved' &&
+      github.event.pull_request.state == 'open' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify approver has write access
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.payload.review.user.login
+            });
+            if (!['admin', 'write'].includes(data.permission)) {
+              core.setFailed(
+                `Approver ${context.payload.review.user.login} lacks write access ` +
+                `(${data.permission}); not auto-merging.`
+              );
+            }
+
+      - name: Checkout base branch (trusted — runs validation & the merge)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch PR contents (DATA ONLY — never executed)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm install
+
+      - name: Re-run validation (authoritative gate)
+        working-directory: scripts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node validate/index.js \
+            --pr-registry="${{ github.workspace }}/pr/registry.json" \
+            --pr-toolchains="${{ github.workspace }}/pr/toolchains.json" \
+            --pr-approved-dir="${{ github.workspace }}/pr/approved" \
+            --base-registry="${{ github.workspace }}/registry.json" \
+            --base-toolchains="${{ github.workspace }}/toolchains.json" \
+            --base-approved-dir="${{ github.workspace }}/approved" \
+            --output=validation-report.md
+          if grep -q "^## ❌" validation-report.md; then
+            echo "Validation failed; refusing to auto-merge."
+            exit 1
+          fi
+
+      - name: Restrict auto-merge to data files
+        run: |
+          # Use the base repo's PR ref so this works for fork PRs too (the head
+          # SHA lives on the fork, not on origin).
+          git fetch origin "+refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pr/head"
+          CHANGED=$(git diff --name-only "origin/main...refs/remotes/pr/head")
+          echo "Changed paths:"; echo "$CHANGED"
+          BAD=$(echo "$CHANGED" | grep -vE '^(registry\.json|toolchains\.json|approved/)' || true)
+          if [ -n "$BAD" ]; then
+            echo "::error::PR touches non-data paths; refusing to auto-merge:"
+            echo "$BAD"
+            exit 1
+          fi
+
+      - name: Union-merge and push
+        run: |
+          git config user.name "openblock-registry-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # .gitattributes (merge=union) auto-resolves registry.json / toolchains.json;
+          # approved/** additions don't overlap. A conflict here means something
+          # outside the union-managed files clashed — abort and leave it to a human.
+          merge_and_push () {
+            git merge --no-ff -m "Auto-merge PR #${{ github.event.pull_request.number }}" refs/remotes/pr/head \
+              || { echo "::error::Merge conflict outside union-managed files."; git merge --abort || true; return 1; }
+            git push origin main
+          }
+          if ! merge_and_push; then
+            # main may have advanced (another auto-merge / manual push): rebase-free
+            # re-sync via a union merge of the new tip, then retry once.
+            git merge --abort 2>/dev/null || true
+            git fetch origin main
+            git reset --hard origin/main
+            merge_and_push
+          fi
+
+      - name: Report outcome
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ok = '${{ job.status }}' === 'success';
+            const body = ok
+              ? '✅ Auto-merged after approval (registry manifests union-merged on the runner).'
+              : '⚠️ Auto-merge did not complete — please review and merge manually. '
+                + 'See the run logs for the reason (validation, permissions, non-data paths, or a real conflict).';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body
+            });
