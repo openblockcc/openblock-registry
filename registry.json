@@ -29,6 +29,12 @@
     ],
     "extensions": [
         "https://github.com/openblock-plugin/sdCard",
+        "https://github.com/openblock-plugin/ps2",
+        "https://github.com/openblock-plugin/pca9685",
+        "https://github.com/openblock-plugin/mpu6050",
+        "https://github.com/openblock-plugin/nrf24l01",
+        "https://github.com/openblock-plugin/moreComments",
+        "https://github.com/openblock-plugin/mfrc522",
         "https://github.com/openblock-plugin/max30102",
         "https://github.com/openblock-plugin/max6675",
         "https://github.com/openblock-plugin/insertSourceCode",
@@ -62,7 +68,11 @@
         "extensions": [
             "https://github.com/openblock-plugin/dht",
             "https://github.com/openblock-plugin/passiveBuzzer",
-            "https://github.com/openblock-plugin/max6675"
+            "https://github.com/openblock-plugin/max6675",
+            "https://github.com/openblock-plugin/nrf24l01",
+            "https://github.com/openblock-plugin/mpu6050",
+            "https://github.com/openblock-plugin/pca9685",
+            "https://github.com/openblock-plugin/ps2"
         ]
     }
 }
