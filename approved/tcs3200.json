@@ -1,0 +1,21 @@
+{
+    "id": "tcs3200",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/tcs3200",
+    "display": {
+        "name": "TCS3200",
+        "description": {
+            "id": "tcs3200.description",
+            "default": "Color sensor module based on TCS3200."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "sensor"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:f3ea7b1e6b7b712b91ee8113f35d26a29e064f23467f928d579fe2c0d1e676e3"
+    },
+    "displayHash": "sha256:0b90b8d88540d614a22b05e4962f2ce68355f3af97891a0a772929c2a35c7051"
+}
