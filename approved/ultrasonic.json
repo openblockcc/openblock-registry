@@ -1,0 +1,24 @@
+{
+    "id": "ultrasonic",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/ultrasonic",
+    "display": {
+        "name": {
+            "id": "ultrasonic.name",
+            "default": "Ultrasonic"
+        },
+        "description": {
+            "id": "ultrasonic.description",
+            "default": "Standard ultrasonic distance measurement module."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "sensor"
+        ],
+        "author": "Liang"
+    },
+    "icons": {
+        "iconURL": "sha256:3162e1a8a150dfdb11d4fea241f2e1997a9aec600bfd75014dcdf7036f9f0602"
+    },
+    "displayHash": "sha256:6b0e39606ccd1a30e0cc2d2194f4b26e84d164070dc41d500b1ba856905254ad"
+}
