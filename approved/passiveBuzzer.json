@@ -1,0 +1,25 @@
+{
+    "id": "passiveBuzzer",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/passiveBuzzer",
+    "display": {
+        "name": {
+            "id": "passiveBuzzer.name",
+            "default": "Passive Buzzer"
+        },
+        "description": {
+            "id": "passiveBuzzer.description",
+            "default": "Unlike the active buzzer, the passive buzzer can be used to make different tones of sound and play some ringtones."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "actuator",
+            "audio"
+        ],
+        "author": "ArthurZheng"
+    },
+    "icons": {
+        "iconURL": "sha256:16eadda8c13695d09a49095e2a5f8760568093127287eafc99cc841337e19bd1"
+    },
+    "displayHash": "sha256:bb06a830ea4e88d0021b2144bbb4fa2fc4495510c2225a823fc98d63e06cd98e"
+}
