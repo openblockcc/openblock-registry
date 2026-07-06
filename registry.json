@@ -84,7 +84,8 @@
             "https://github.com/openblock-plugin/shiftDigitDisplay",
             "https://github.com/openblock-plugin/rgbLedStrip",
             "https://github.com/openblock-plugin/tcs3200",
-            "https://github.com/openblock-plugin/oled"
+            "https://github.com/openblock-plugin/oled",
+            "https://github.com/openblock-plugin/u8g2"
         ]
     }
 }
