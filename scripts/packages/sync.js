@@ -139,6 +139,25 @@ const runWithConcurrency = async (items, handler, concurrency) => {
 };
 
 /**
+ * Derive programMode for legacy extension versions that were published before
+ * the field existed. Mirrors the GUI's historical main/blocks/generator
+ * visibility heuristic so old packages keep classifying into the same modes:
+ *   - realtime unless the extension is blocks-only with no main
+ *   - upload when it has content and is not a main-without-generator extension
+ * @param {object} openblock - openblock config from dist/package.json
+ * @returns {string[]} programMode array (never empty)
+ */
+const deriveProgramMode = openblock => {
+    const hasMain = !!openblock.main;
+    const hasBlocks = !!openblock.blocks;
+    const hasGenerator = !!openblock.generator;
+    const modes = [];
+    if (hasMain || !hasBlocks) modes.push('realtime');
+    if ((hasMain || hasBlocks) && (!hasMain || hasGenerator)) modes.push('upload');
+    return modes.length ? modes : ['realtime', 'upload'];
+};
+
+/**
  * Build package entry for packages.json
  * Uses the compiled dist/package.json which contains base64 iconURL and processed fields
  * @param {object} distPackageJson - Compiled package.json from dist directory
@@ -186,7 +205,8 @@ const buildPackageEntry = (distPackageJson, type, version, repoUrl, fileInfo) =>
 
     // Extension-specific fields
     const extensionFields = [
-        'arch'
+        'arch',
+        'programMode'
     ];
 
     // Copy common fields
@@ -202,6 +222,13 @@ const buildPackageEntry = (distPackageJson, type, version, repoUrl, fileInfo) =>
         if (Object.prototype.hasOwnProperty.call(openblock, field)) {
             entry[field] = openblock[field];
         }
+    }
+
+    // Backfill programMode for legacy extension versions published before the
+    // field existed, so a rebuilt packages.json classifies them the same way the
+    // GUI used to via main/blocks/generator.
+    if (type === 'extensions' && !Array.isArray(entry.programMode)) {
+        entry.programMode = deriveProgramMode(openblock);
     }
 
     // Add author from package.json root
