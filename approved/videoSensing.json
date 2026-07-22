@@ -1,0 +1,24 @@
+{
+    "id": "videoSensing",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/videoSensing",
+    "display": {
+        "name": {
+            "id": "videoSensing.name",
+            "default": "Video Sensing"
+        },
+        "description": {
+            "id": "videoSensing.description",
+            "default": "Sense motion with the camera."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "sensor"
+        ],
+        "author": "Scratch"
+    },
+    "icons": {
+        "iconURL": "sha256:c17ab15af834f9d2ddb9d7c345a343634182f78e6625aeffaae2052ddb946450"
+    },
+    "displayHash": "sha256:94f85e98b559037f2637413e246961a60d1022f805e1abac4f2d3ba6bdb05c5d"
+}
