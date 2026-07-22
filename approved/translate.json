@@ -1,0 +1,24 @@
+{
+    "id": "translate",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/translate",
+    "display": {
+        "name": {
+            "id": "translate.name",
+            "default": "Translate"
+        },
+        "description": {
+            "id": "translate.description",
+            "default": "Translate text into many languages."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "other"
+        ],
+        "author": "Scratch"
+    },
+    "icons": {
+        "iconURL": "sha256:c74f77e2c491fb03e38677bbf2fc26973f5f603d95ef9c0049236adcba292a5e"
+    },
+    "displayHash": "sha256:57c361a8065771818ae4abf1b20ced8e14a0ff51cb4f86972b7a375e8e6c6b97"
+}
