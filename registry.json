@@ -28,6 +28,7 @@
         "https://github.com/openblock-plugin/arduinoUnoR4Wifi"
     ],
     "extensions": [
+        "https://github.com/openblock-plugin/videoSensing",
         "https://github.com/openblock-plugin/ultrasonic",
         "https://github.com/openblock-plugin/u8g2",
         "https://github.com/openblock-plugin/oled",
