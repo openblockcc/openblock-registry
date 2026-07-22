@@ -64,6 +64,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           path: pr
           persist-credentials: false
+          # Safe: pr/ is only ever read as data (JSON), never executed. See the
+          # SECURITY note at the top of this file. Do NOT remove this guard's
+          # precondition by running any script from pr/.
+          allow-unsafe-pr-checkout: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

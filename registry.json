@@ -29,6 +29,8 @@
     ],
     "extensions": [
         "https://github.com/openblock-plugin/text2speech",
+        "https://github.com/openblock-plugin/music",
+        "https://github.com/openblock-plugin/pen",
         "https://github.com/openblock-plugin/ultrasonic",
         "https://github.com/openblock-plugin/u8g2",
         "https://github.com/openblock-plugin/oled",

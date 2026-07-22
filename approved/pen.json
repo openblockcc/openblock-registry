@@ -1,0 +1,24 @@
+{
+    "id": "pen",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/pen",
+    "display": {
+        "name": {
+            "id": "pen.name",
+            "default": "Pen"
+        },
+        "description": {
+            "id": "pen.description",
+            "default": "Draw with your sprites."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "other"
+        ],
+        "author": "Scratch"
+    },
+    "icons": {
+        "iconURL": "sha256:b15a2e3602a8a6b3e6b8cd4c21f5d7eb2ee55c5af51e17c45b55d785df73673d"
+    },
+    "displayHash": "sha256:a95d8df0137559f4cf22304306dc568344b368591882ce388d1ee9753cae07b0"
+}
