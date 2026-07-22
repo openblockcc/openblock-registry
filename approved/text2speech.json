@@ -1,0 +1,24 @@
+{
+    "id": "text2speech",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/text2speech",
+    "display": {
+        "name": {
+            "id": "text2speech.name",
+            "default": "Text to Speech"
+        },
+        "description": {
+            "id": "text2speech.description",
+            "default": "Make your projects talk."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "audio"
+        ],
+        "author": "Scratch"
+    },
+    "icons": {
+        "iconURL": "sha256:6942e4327e3bad377248621e7f33edf32bb7adafe92ac338c31109a4feb879bd"
+    },
+    "displayHash": "sha256:6d13204478b6a43a3053df0d3e68e88fb9252aae439167ded14562ebe8400d35"
+}
