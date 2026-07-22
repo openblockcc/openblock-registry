@@ -1,0 +1,24 @@
+{
+    "id": "music",
+    "type": "extensions",
+    "repository": "https://github.com/openblock-plugin/music",
+    "display": {
+        "name": {
+            "id": "music.name",
+            "default": "Music"
+        },
+        "description": {
+            "id": "music.description",
+            "default": "Play instruments and drums."
+        },
+        "helpLink": "https://wiki.openblock.cc",
+        "tags": [
+            "audio"
+        ],
+        "author": "Scratch"
+    },
+    "icons": {
+        "iconURL": "sha256:9c6d7e9383d3ca3941952ab6b40ed79ca9c9bc601155941e4e8e2a559b7bf9c5"
+    },
+    "displayHash": "sha256:c002d1aa1ff49bb2d83eb38ed3aca1b2f316c34f714039be02d40d950a0f945a"
+}
