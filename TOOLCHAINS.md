@@ -13,4 +13,4 @@
 | arduino-maixduino-k210 | 0.3.11 | ✓ | ✓ | ✓ | ✓ |  |  |
 | arduino-rp2040-rp2040 | 6.3.2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | arduino-sparkFun-avr | 1.1.13 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| arduino-stm32-stm32 | 3.0.0 | ✓ | ✓ | ✓ | ✓ | ✓ |  |
+| arduino-stm32-stm32 | 3.1.0 | ✓ | ✓ | ✓ | ✓ | ✓ |  |
